@@ -1,34 +1,9 @@
-import { registerUser, updateUserProfile } from '../services/userService.js';
-import { HTTP_STATUS, ERROR_MESSAGES, MESSAGES } from '../constants/index.js';
-import {baseController} from './baseController.js';
+import { BaseController } from './baseController.js';
+import { getAllUsersService, addUserInterestService } from '../services/userService.js';
+import { HTTP_STATUS, MESSAGES } from '../constants/index.js';
 
-
-/**
- * Register a new user
- * @route POST /api/users/register
- */
-export const register = async (req, res, next) => {
-  try {
-    // Extract validated data from request body (validated by Zod middleware)
-    const { name, email, password, role } = req.body;
-
-    // Register user (role is optional, defaults to 'user')
-    const user = await registerUser({ name, email, password, role });
-
-    // Return success response
-    return baseController.sendSuccess(
-        res,
-        { user },
-        MESSAGES.USER_CREATED,
-        HTTP_STATUS.CREATED
-    );
-
-  } catch (error) {
-    // Pass errors to error handler
-    next(error);
-  }
-};
-
+// Create an instance of BaseController to handle common controller logic
+const baseController = new BaseController();
 /**
  * Update user profile
  * @route PUT /api/users/me/update/:id
@@ -68,11 +43,26 @@ export const updateProfile = async (req, res, next) => {
  * @route GET /api/users
  */
 export const getAllUsers = baseController.handleRequest(async (req, res) => {
-    const users = await getAllUsersService(req?.user?.userId);
+    const users = await getAllUsersService();
     return baseController.sendSuccess(
         res,
         { users },
         MESSAGES.USERS_FETCHED,
+        HTTP_STATUS.OK
+    );
+});
+
+/**
+ * Add user interest
+ * @route POST /api/users/add-user-interest
+ */
+export const addUserInterest = baseController.handleRequest(async (req, res) => {
+    const { userId, interests } = req.body;
+    const result = await addUserInterestService(userId, interests);
+    return baseController.sendSuccess(
+        res,
+        result,
+        MESSAGES.INTEREST_ADDED,
         HTTP_STATUS.OK
     );
 });

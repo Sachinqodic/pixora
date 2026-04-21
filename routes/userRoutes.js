@@ -1,20 +1,34 @@
 import express from 'express';
-import { register, updateProfile } from '../controllers/userController.js';
+import { updateProfile } from '../controllers/userController.js';
 import { publicRateLimiter } from '../middlewares/rateLimiter.js';
-import { validateRegister, validateUpdateProfile } from '../validations/userValidation.js';
+import { validateUpdateProfile } from '../validations/userValidation.js';
 import { upload, handleMulterError } from '../helpers/multerConfig.js';
+import { protectedRoute, authChecker } from '../middlewares/authChecker.js';
+import { getAllUsers, addUserInterest } from '../controllers/userController.js';
+import { validateAddUserInterest } from '../validations/userValidation.js';
 
 const router = express.Router();
 
 /**
- * Register a new user
+ * Get all users
+ */
+router.get(
+    '/',
+    // publicRateLimiter, // Apply public rate limiter (10 requests/minute)
+    protectedRoute,
+    getAllUsers
+);
+
+/**
+ * Add user interest
  */
 router.post(
-  '/register',
-  //publicRateLimiter, // Apply public rate limiter (10 requests/minute)
-  validateRegister, // Validate registration data
-  register
-);
+    '/add-user-interest',
+    // publicRateLimiter, // Apply public rate limiter (10 requests/minute)
+    authChecker,
+    validateAddUserInterest,
+    addUserInterest
+)
 
 /**
  * Update user profile

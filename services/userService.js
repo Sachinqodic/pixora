@@ -1,64 +1,46 @@
-
+import UserInterest from '../models/UserInterest.js';
 import User from '../models/User.js';
-import { ERROR_MESSAGES, HTTP_STATUS ,PLAN_TYPES} from '../constants/index.js';
-import { hashPassword } from '../utils/passwordUtils.js';
-
+import { ERROR_MESSAGES, HTTP_STATUS } from '../constants/index.js';
 
 /**
- * Register a new user
+ * Get all users
+ * @returns {Promise<Array<Object>>} Array of user objects
  * 
- * @param {Object} userData - User registration data
- * @param {string} userData.name - User's full name
- * @param {string} userData.email - User's email address
- * @param {string} userData.password - User's plain text password
- * @returns {Promise<Object>} Created user object (without password)
- * 
- * @throws {Error} If email already exists
- * @throws {Error} If user creation fails
+ * @throws {Error} If user retrieval fails
  * 
  */
-export async function registerUser(userData) {
-  const { name, email, password, role = 'user' } = userData;
+export const getAllUsersService = async () => {
+    const users = await User.find();
+    return users;
+};
 
-  // Check if user already exists (including soft deleted users)
-  const existingUser = await User.findOne({ email: email.toLowerCase() });
-  
-  if (existingUser) {
-    // If user is active and not deleted, return conflict error
-    if (existingUser.is_active && !existingUser.deleted_at) {
-      const error = new Error(ERROR_MESSAGES.USER_ALREADY_EXISTS);
-      error.statusCode = HTTP_STATUS.CONFLICT;
-      throw error;
+/**
+ * Add user interest
+ * @param {string} userId - User ID
+ * @param {Array<string>} interests - Array of interests
+ * @returns {Promise<Object>} User object with added interests
+ * 
+ * @throws {Error} If user not found or interest addition fails
+ * 
+ */
+export const addUserInterestService = async (userId, interests) => {
+    const user = await User.findById(userId);
+    if (!user) {
+        const error = new Error(ERROR_MESSAGES.USER_NOT_FOUND);
+        error.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw error;
     }
-
-    // If user exists but is inactive or soft deleted, reactivate the account
-    if (!existingUser.is_active || existingUser.deleted_at) {
-      const error = new Error(ERROR_MESSAGES.USER_PROFILE_DEACTIVATED);
-      error.statusCode = HTTP_STATUS.FORBIDDEN;
-      throw error;
+    // Find or create the UserInterest document for this user
+    let userInterest = await UserInterest.findOne({ user_id: userId });
+    if (!userInterest) {
+        userInterest = new UserInterest({ user_id: userId, interest: [] });
     }
-  }
-
-  // Hash password
-  const password_hash = await hashPassword(password);
-
-  // Create new user
-  const newUser = await User.create({
-    name,
-    email: email.toLowerCase(),
-    password_hash,
-    is_email_verified: false,
-    plan_type: PLAN_TYPES.FREE,
-    storage_used: 0,
-    role: role,
-    is_active: true,
-    profile_url: null,
-    deleted_at: null
-  });
-
-  // Return user without password hash
-  return newUser.getPublicProfile();
-}
+    // Use the instance method — handles dedup + saves internally
+    for (const interest of interests) {
+        await userInterest.addInterest(interest);
+    }
+    return userInterest;
+};
 
 /**
  * Update user profile

@@ -5,41 +5,22 @@ import { ERROR_MESSAGES } from '../constants/index.js';
  * Generate JWT token
  * 
  * @param {string} userId - User ID to include in token
+ * @param {string} secret - JWT secret
+ * @param {string} errorMessage - Error message to throw if token is invalid
  * @returns {Promise<string>} Generated JWT token
  * 
  * @example
- * const token = await generateToken('1234567890');
+ * const token = await generateToken('1234567890', process.env.JWT_SECRET, ERROR_MESSAGES.INVALID_TOKEN);
  */
-export const generateToken = async (userId) => {
+export const generateToken = async (userId, secret, errorMessage, expiresIn, tokenType) => {
   if (!userId) {
     throw new Error(ERROR_MESSAGES.USER_ID_REQUIRED);
   }
 
   try {
-    return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
+    return jwt.sign({ userId, tokenType }, secret, { expiresIn });
   } catch (error) {
-    throw new Error(ERROR_MESSAGES.FAILED_TO_GENERATE_TOKEN);
-  }
-}
-
-/**
- * Generate JWT refresh token
- * 
- * @param {string} userId - User ID to include in token
- * @returns {Promise<string>} Generated JWT refresh token
- * 
- * @example
- * const token = await generateRefreshToken('1234567890');
- */
-export const generateRefreshToken = async (userId) => {
-  if (!userId) {
-    throw new Error(ERROR_MESSAGES.USER_ID_REQUIRED);
-  }
-
-  try {
-    return jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET, { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN });
-  } catch (error) {
-    throw new Error(ERROR_MESSAGES.FAILED_TO_GENERATE_REFRESH_TOKEN);
+    throw new Error(errorMessage);
   }
 }
 
@@ -47,32 +28,30 @@ export const generateRefreshToken = async (userId) => {
  * Verify JWT token
  * 
  * @param {string} token - JWT token to verify
+ * @param {string} secret - JWT secret
+ * @param {string} errorMessage - Error message to throw if token is invalid
  * @returns {Promise<Object>} Decoded token payload
  * 
  * @example
- * const decoded = await verifyToken('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...');
+ * const decoded = await verifyToken('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...', process.env.JWT_SECRET, ERROR_MESSAGES.INVALID_TOKEN);
  */
-export const verifyToken = (token) => {
+export const verifyToken = (token, secret, errorMessage, tokenType) => {
+  let decoded;
   try {
-    return jwt.verify(token, process.env.JWT_SECRET);
+    decoded = jwt.verify(token, secret);
   } catch (error) {
-    throw new Error(ERROR_MESSAGES.INVALID_TOKEN);
+    // Token is expired, malformed, or signature is invalid
+    const errorCustom = new Error(errorMessage);
+    errorCustom.statusCode = HTTP_STATUS.UNAUTHORIZED;
+    throw errorCustom;
   }
-};
 
-/**
- * Verify JWT refresh token
- * 
- * @param {string} token - JWT refresh token to verify
- * @returns {Promise<Object>} Decoded token payload
- * 
- * @example
- * const decoded = await verifyRefreshToken('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...');
- */
-export const verifyRefreshToken = (token) => {
-  try {
-    return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
-  } catch (error) {
-    throw new Error(ERROR_MESSAGES.INVALID_REFRESH_TOKEN);
+  // Token type check is outside try/catch so mismatches throw clearly
+  if (decoded.tokenType !== tokenType) {
+    const errorCustom = new Error(errorMessage);
+    errorCustom.statusCode = HTTP_STATUS.UNAUTHORIZED;
+    throw errorCustom;
   }
+
+  return decoded;
 };

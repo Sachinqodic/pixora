@@ -5,6 +5,7 @@ dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from "cookie-parser";
 import { config, validateConfig } from './config/env.js';
 import connectDB, { isDatabaseConnected, disconnectDatabase } from './config/db.js';
 import { errorHandler } from './middlewares/errorHandler.js';
@@ -19,6 +20,9 @@ validateConfig();
 
 // Create Express app
 const app = express();
+
+// Cookie parser middleware
+app.use(cookieParser());
 
 // Trust proxy (for rate limiting behind reverse proxy)
 app.set('trust proxy', 1);

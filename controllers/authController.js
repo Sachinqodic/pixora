@@ -1,6 +1,7 @@
-import { registerUser, loginUser, accessTokenReCreation, emailVerificationService } from '../services/authService.js';
+import { registerUser, loginUser, accessTokenReCreation, forgotPasswordService, resetPasswordService } from '../services/authService.js';
 import { HTTP_STATUS, MESSAGES } from '../constants/index.js';
 import { BaseController } from './baseController.js';
+import { setAuthCookies } from '../utils/cookieUtil.js';
 
 // Create an instance of BaseController
 const baseController = new BaseController();
@@ -12,13 +13,13 @@ const baseController = new BaseController();
 export const register = baseController.handleRequest(async (req, res) => {
   const { name, email, password, role } = req.body;
 
-  const user = await registerUser({ name, email, password, role });
+  const result = await registerUser({ name, email, password, role });
 
-  await emailVerificationService({ email });
+  setAuthCookies(res, result);
 
   return baseController.sendSuccess(
     res,
-    { user },
+    { user: result.user },
     MESSAGES.USER_CREATED,
     HTTP_STATUS.CREATED
   );
@@ -31,11 +32,13 @@ export const register = baseController.handleRequest(async (req, res) => {
 export const login = baseController.handleRequest(async (req, res) => {
   const { email, password } = req.body;
 
-  const user = await loginUser({ email, password });
+  const result = await loginUser({ email, password });
+
+  setAuthCookies(res, result);
 
   return baseController.sendSuccess(
     res,
-    { user },
+    { user: result.user },
     MESSAGES.USER_LOGGED_IN,
     HTTP_STATUS.OK
   );
@@ -46,13 +49,15 @@ export const login = baseController.handleRequest(async (req, res) => {
  * @route POST /api/auth/refresh
  */
 export const refreshToken = baseController.handleRequest(async (req, res) => {
-  const { refreshToken } = req.body;
+  const refreshToken = req.cookies.refreshToken;
 
-  const user = await accessTokenReCreation(refreshToken);
+  const result = await accessTokenReCreation(refreshToken);
+
+  setAuthCookies(res, result);
 
   return baseController.sendSuccess(
     res,
-    { user },
+    { user: result.user },
     MESSAGES.USER_LOGGED_IN,
     HTTP_STATUS.OK
   );
@@ -79,9 +84,10 @@ export const forgotPassword = baseController.handleRequest(async (req, res) => {
  * @route POST /api/auth/reset-password
  */
 export const resetPassword = baseController.handleRequest(async (req, res) => {
-  const { token, password } = req.body;
+  const { password } = req.body;
+  const token = req.query.token;
 
-  const user = await resetPasswordService({ token, password });
+  const user = await resetPasswordService(token, password);
 
   return baseController.sendSuccess(
     res,

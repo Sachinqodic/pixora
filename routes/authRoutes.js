@@ -1,6 +1,6 @@
 import express from 'express';
 import { register, login, refreshToken, forgotPassword, resetPassword } from '../controllers/authController.js';
-import { validateRegister, validateLogin, validateRefreshToken, validateForgotPassword, validateResetPassword } from '../validations/authValidation.js';
+import { validateRegister, validateLogin, validateForgotPassword, validateResetPassword } from '../validations/authValidation.js';
 
 const router = express.Router();
 
@@ -30,7 +30,6 @@ router.post(
 router.post(
   '/refresh',
   // publicRateLimiter, // Apply public rate limiter (10 requests/minute)
-  validateRefreshToken, // Validate login data
   refreshToken
 );
 

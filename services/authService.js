@@ -1,12 +1,14 @@
 
 import User from '../models/User.js';
-import { ERROR_MESSAGES, HTTP_STATUS, PLAN_TYPES } from '../constants/index.js';
+import { ERROR_MESSAGES, HTTP_STATUS, PLAN_TYPES, JWT_TOKEN_TYPES } from '../constants/index.js';
 import { hashPassword, comparePassword } from '../utils/passwordUtils.js';
-import { generateToken, verifyRefreshToken, generateRefreshToken } from '../utils/jwtUtils.js';
+import { generateToken, verifyToken } from '../utils/jwtUtils.js';
+import { config } from '../config/env.js';
 import sgMail from '@sendgrid/mail';
+import { EmailContent } from '../utils/textContent.js';
 
 // Set SendGrid API key
-sgMail.setApiKey(process.env.SEND_GRID_API_KEY);
+sgMail.setApiKey(config.security.sendGridApiKey);
 
 /**
  * Register a new user
@@ -21,7 +23,7 @@ sgMail.setApiKey(process.env.SEND_GRID_API_KEY);
  * @throws {Error} If user creation fails
  * 
  */
-export async function registerUser(userData) {
+export const registerUser = async (userData) => {
   const { name, email, password, role = 'user' } = userData;
 
   // Check if user already exists (including soft deleted users)
@@ -60,8 +62,16 @@ export async function registerUser(userData) {
     deleted_at: null
   });
 
-  // Return user without password hash
-  return newUser.getPublicProfile();
+  // Generate JWT token
+  const accessToken = await generateToken(newUser._id, config.security.jwtSecret, ERROR_MESSAGES.INVALID_TOKEN, config.security.jwtExpiresIn, JWT_TOKEN_TYPES.ACCESS_TOKEN);
+  const refreshToken = await generateToken(newUser._id, config.security.jwtSecret, ERROR_MESSAGES.INVALID_REFRESH_TOKEN, config.security.jwtRefreshExpiresIn, JWT_TOKEN_TYPES.REFRESH_TOKEN);
+
+  // Return user without password hash and tokens
+  return {
+    user: newUser.getPublicProfile(),
+    accessToken,
+    refreshToken
+  };
 }
 
 /**
@@ -106,12 +116,12 @@ export const loginUser = async (userData) => {
   }
 
   // Generate JWT token
-  const token = await generateToken(user._id);
-  const refreshToken = await generateRefreshToken(user._id);
+  const token = await generateToken(user._id, config.security.jwtSecret, ERROR_MESSAGES.INVALID_TOKEN, config.security.jwtExpiresIn, JWT_TOKEN_TYPES.ACCESS_TOKEN);
+  const refreshToken = await generateToken(user._id, config.security.jwtSecret, ERROR_MESSAGES.INVALID_REFRESH_TOKEN, config.security.jwtRefreshExpiresIn, JWT_TOKEN_TYPES.REFRESH_TOKEN);
 
   // Return user without password hash and token
   return {
-    ...user.getPublicProfile(),
+    user: user.getPublicProfile(),
     accessToken: token,
     refreshToken: refreshToken
   };
@@ -136,7 +146,11 @@ export const accessTokenReCreation = async (refreshToken) => {
   }
 
   // Verify refresh token
-  const decodedToken = await verifyRefreshToken(refreshToken);
+  const decodedToken = await verifyToken(refreshToken,
+    config.security.jwtSecret,
+    ERROR_MESSAGES.INVALID_REFRESH_TOKEN,
+    JWT_TOKEN_TYPES.REFRESH_TOKEN
+  );
 
   // Check if user exists (including soft deleted users)
   const user = await User.findById(decodedToken.userId).select('+password_hash -__v');
@@ -155,11 +169,16 @@ export const accessTokenReCreation = async (refreshToken) => {
   }
 
   // Generate new JWT token
-  const token = await generateToken(user._id);
+  const token = await generateToken(user._id,
+    config.security.jwtSecret,
+    ERROR_MESSAGES.INVALID_TOKEN,
+    config.security.jwtExpiresIn,
+    JWT_TOKEN_TYPES.ACCESS_TOKEN
+  );
 
   // Return user without password hash and token
   return {
-    ...user.getPublicProfile(),
+    user: user.getPublicProfile(),
     accessToken: token,
     refreshToken: refreshToken
   };
@@ -177,63 +196,119 @@ export const accessTokenReCreation = async (refreshToken) => {
  * 
  */
 export const forgotPasswordService = async (userData) => {
-  const { email } = userData;
+  try {
+    const { email } = userData;
 
-  // Check if user exists (including soft deleted users)
-  const user = await User.findOne({ email: email.toLowerCase() }).select('+password_hash -__v');
+    // Check if user exists (including soft deleted users)
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+password_hash -__v');
 
-  if (!user) {
-    const error = new Error(ERROR_MESSAGES.USER_NOT_FOUND);
-    error.statusCode = HTTP_STATUS.NOT_FOUND;
+    if (!user || !user.is_active || user.deleted_at) {
+      const error = new Error(ERROR_MESSAGES.USER_NOT_FOUND);
+      error.statusCode = HTTP_STATUS.NOT_FOUND;
+      throw error;
+    }
+
+    // Generate short-lived password reset token (1 hour)
+    const token = await generateToken(user._id,
+      config.security.jwtSecret,
+      ERROR_MESSAGES.INVALID_TOKEN,
+      '1h',
+      JWT_TOKEN_TYPES.PASSWORD_RESET_TOKEN
+    );
+
+    const verificationUrl = `${config.client.baseUrl}/reset-password?token=${token}`;
+    const subject = "Pixora Password Reset";
+    const text = `Click on the link to reset your password: ${verificationUrl}`;
+    const html = EmailContent.passwordReset(verificationUrl);
+
+    const response = await sendEmailService(email, subject, text, html);
+    return { status: response.status, message: ERROR_MESSAGES.PASSWORD_RESET_LINK_SENT };
+  } catch (error) {
     throw error;
   }
-
-  // Check if user is not active and deleted
-  if (!user.is_active || user.deleted_at) {
-    const error = new Error(ERROR_MESSAGES.USER_PROFILE_DEACTIVATED);
-    error.statusCode = HTTP_STATUS.FORBIDDEN;
-    throw error;
-  }
-
-  // Generate JWT token
-  const token = await generateToken(user._id);
-
-  // Return user without password hash and token
-  return {
-    ...user.getPublicProfile(),
-    accessToken: token
-  };
 };
 
 /**
- * Email verification
+ * Send email
  * 
- * @param {Object} userData - User data
- * @param {string} userData.email - User's email address
- * @returns {Promise<Object>} User object
+ * @param {string} email - User's email address
+ * @param {string} subject - Email subject
+ * @param {string} text - Email text
+ * @param {string} html - Email HTML
+ * @returns {Promise<Object>} Response object
  * 
- * @throws {Error} If user not found
- * @throws {Error} If user profile is deactivated
+ * @throws {Error} If email cannot be sent
  * 
  */
-export const emailVerificationService = async (userData) => {
+const sendEmailService = async (email, subject, text, html) => {
   try {
     const response = await sgMail.send({
-      to: "sachin@qodictechnosoft.com",
-      from: process.env.SEND_GRID_SENDOR_EMAIL,
-      subject: "Test Email",
-      text: "It works!",
+      to: email,
+      from: config.security.sendGridSendorEmail,
+      subject: subject,
+      text: text,
+      html: html,
     });
-    console.log('Email sent successfully. Status:', response[0].statusCode);
     return response;
   } catch (error) {
-    // SendGrid returns detailed error info in error.response.body
-    if (error.response) {
-      console.error('SendGrid error status:', error.response.status || error.code);
-      console.error('SendGrid error body:', JSON.stringify(error.response.body, null, 2));
-    } else {
-      console.error('Error sending email:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Reset password
+ * 
+ * @param {string} token - Password reset token
+ * @param {string} password - New password
+ * @returns {Promise<Object>} Response object
+ * 
+ * @throws {Error} If password reset token is invalid
+ * @throws {Error} If user not found
+ * @throws {Error} If user profile is deactivated
+ * @throws {Error} If user is not email verified
+ * 
+ */
+export const resetPasswordService = async (token, password) => {
+  try {
+    if (!token) {
+      const error = new Error(ERROR_MESSAGES.PASSWORD_RESET_TOKEN_REQUIRED);
+      error.statusCode = HTTP_STATUS.BAD_REQUEST;
+      throw error;
     }
+
+    const decodedToken = await verifyToken(token,
+      config.security.jwtSecret,
+      ERROR_MESSAGES.INVALID_TOKEN,
+      JWT_TOKEN_TYPES.PASSWORD_RESET_TOKEN
+    );
+
+    const user = await User.findById(decodedToken.userId).select('+password_hash -__v');
+
+    if (!user) {
+      const error = new Error(ERROR_MESSAGES.USER_NOT_FOUND);
+      error.statusCode = HTTP_STATUS.NOT_FOUND;
+      throw error;
+    }
+
+    // Check if user is not active and deleted
+    if (!user.is_active || user.deleted_at) {
+      const error = new Error(ERROR_MESSAGES.USER_PROFILE_DEACTIVATED);
+      error.statusCode = HTTP_STATUS.FORBIDDEN;
+      throw error;
+    }
+
+    // Hash password
+    const password_hash = await hashPassword(password);
+
+    // Update user password
+    user.password_hash = password_hash;
+    await user.save();
+
+    return {
+      success: true,
+      message: ERROR_MESSAGES.PASSWORD_RESET
+    };
+  } catch (error) {
     throw error;
   }
 };

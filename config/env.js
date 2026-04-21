@@ -21,6 +21,11 @@ export const config = {
     baseUrl: process.env.SERVER_BASE_URL || 'http://localhost:3003',
   },
 
+  // Client Configuration
+  client: {
+    baseUrl: process.env.CLIENT_BASE_URL || 'http://localhost:3000',
+  },
+
   // Database Configuration
   database: {
     url: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/pixora',
@@ -71,6 +76,10 @@ export const config = {
     jwtSecret: process.env.JWT_SECRET || 'your-secret-key-change-in-production',
     jwtAccessTokenLifetime: NUMERIC_CONSTANTS.JWT_ACCESS_TOKEN_LIFETIME,
     jwtRefreshTokenLifetime: NUMERIC_CONSTANTS.JWT_REFRESH_TOKEN_LIFETIME,
+    jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
+    jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    sendGridSendorEmail: process.env.SEND_GRID_SENDOR_EMAIL,
+    sendGridApiKey: process.env.SEND_GRID_API_KEY
   },
 
   // AWS S3 Configuration

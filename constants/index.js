@@ -131,11 +131,18 @@ export const ERROR_MESSAGES = {
   TOKEN_EXPIRED: 'Token has expired',
   UNAUTHORIZED_ACCESS: 'Unauthorized access',
   FORBIDDEN_ACCESS: 'You do not have permission to access this resource',
-
+  EMAIL_NOT_VERIFIED: 'Email not verified. Please verify your email to login.',
+  EMAIL_ALREADY_VERIFIED: 'Email already verified. Please login to continue.',
+  EMAIL_VERIFICATION_TOKEN_REQUIRED: 'Email verification token is required',
+  PASSWORD_RESET: 'Password reset successfully. Now you can login.',
+  PASSWORD_RESET_LINK_SENT: 'Password reset link sent successfully',
+  
   // User Errors
   USER_AUTHENTICATION_REQUIRED: 'User authentication required',
   USER_NOT_FOUND: 'User not found',
   USER_ALREADY_EXISTS: 'User with this email already exists',
+  FAILED_TO_GENERATE_TOKEN: 'Failed to generate token',
+  FAILED_TO_GENERATE_REFRESH_TOKEN: 'Failed to generate refresh token',
   USER_CREATION_FAILED: 'Failed to create user',
   USER_UPDATE_FAILED: 'Failed to update user',
   USER_DELETE_FAILED: 'Failed to delete user',
@@ -234,3 +241,12 @@ export const FILE_UPLOAD = {
 };
 
 Object.freeze(FILE_UPLOAD);
+
+// JWT Token types Constants
+export const JWT_TOKEN_TYPES = {
+  ACCESS_TOKEN: 'accessToken',
+  REFRESH_TOKEN: 'refreshToken',
+  PASSWORD_RESET_TOKEN: 'passwordResetToken',
+};
+
+Object.freeze(JWT_TOKEN_TYPES);
