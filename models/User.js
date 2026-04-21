@@ -29,7 +29,7 @@ const userSchema = new mongoose.Schema(
     
     plan_type: {
       type: String,
-      enum: ['free', 'basic', 'premium', 'enterprise'], // Database-level constraint
+      enum: ['free', 'starter', 'pro', 'enterprise'], // Database-level constraint
       default: 'free',
       lowercase: true
     },

@@ -14,6 +14,8 @@ import { initializeRateLimiters, disconnectRedis, publicRateLimiter } from './mi
 import index from './routes/index.js';
 import { displayServerStatus } from './utils/monitor.js';
 import { HTTP_STATUS, STRING_CONSTANTS } from './constants/index.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+
 
 // Validate configuration
 validateConfig();
@@ -127,6 +129,9 @@ app.get('/', (req, res) => {
 
 // Register routes
 app.use('/api/v1', index);
+
+// payment Routes 
+app.use('/', paymentRoutes);
 
 // 404 handler
 app.use((req, res) => {
