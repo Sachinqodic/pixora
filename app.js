@@ -81,7 +81,10 @@ app.use(cors(corsOptions));
 // Attach client IP to request object
 app.use(attachClientIP);
 
-// Body parsing middleware
+// Stripe webhook needs raw body - apply raw parser to /webhook path BEFORE JSON parser
+app.use('/webhook', express.raw({ type: 'application/json' }));
+
+// Body parsing middleware for all other routes
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 

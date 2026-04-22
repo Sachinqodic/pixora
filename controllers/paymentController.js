@@ -1,11 +1,7 @@
-import { createCheckoutSession, handleWebhook } from '../services/paymentService.js';
-import { HTTP_STATUS, MESSAGES } from '../constants/index.js';
+import { createCheckoutSession, handleWebhook, createCustomerPortalSession } from '../services/paymentService.js';
+import { HTTP_STATUS, MESSAGES, VALID_PLAN_TYPES, VALID_PERIODS } from '../constants/index.js';
 import { baseController } from './baseController.js';
 
-
-// Valid plan types from User model
-const VALID_PLAN_TYPES = ['free', 'starter', 'pro', 'enterprise'];
-const VALID_PERIODS = ['monthly', 'yearly'];
 
 /**
  * Create Stripe checkout session
@@ -44,7 +40,7 @@ export const stripePayment = baseController.handleRequest(async (req, res) => {
     throw error;
   }
 
-  // Create checkout session
+  // Create checkout session (or upgrade if existing subscription)
   const result = await createCheckoutSession(
     email,
     normalizedPlanType,
@@ -52,11 +48,46 @@ export const stripePayment = baseController.handleRequest(async (req, res) => {
     userId
   );
 
+  // Check if it was an upgrade
+  if (result.upgraded) {
+    return baseController.sendSuccess(
+      res,
+      result,
+      'Subscription upgraded successfully with proration',
+      HTTP_STATUS.OK
+    );
+  }
+
   return baseController.sendSuccess(
     res,
     result,
     'Checkout session created successfully',
     HTTP_STATUS.CREATED
+  );
+});
+
+/**
+ * Create Stripe Customer Portal session for managing subscriptions
+ * @route POST /manage-subscription
+ */
+export const manageSubscription = baseController.handleRequest(async (req, res) => {
+  const { email } = req.body;
+
+  // Validate required parameters
+  if (!email) {
+    const error = new Error('Missing required parameter: email');
+    error.statusCode = HTTP_STATUS.BAD_REQUEST;
+    throw error;
+  }
+
+  // Create customer portal session
+  const result = await createCustomerPortalSession(email);
+
+  return baseController.sendSuccess(
+    res,
+    result,
+    'Customer portal session created successfully',
+    HTTP_STATUS.OK
   );
 });
 

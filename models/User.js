@@ -34,6 +34,25 @@ const userSchema = new mongoose.Schema(
       lowercase: true
     },
     
+    billing_period: {
+      type: String,
+      enum: ['monthly', 'yearly'],
+      default: null,
+      lowercase: true
+    },
+    
+    subscription_status: {
+      type: String,
+      enum: ['active', 'canceled', 'past_due', 'incomplete'],
+      default: null,
+      lowercase: true
+    },
+    
+    subscription_end_date: {
+      type: Date,
+      default: null
+    },
+    
     storage_used: {
       type: Number,
       default: 0,

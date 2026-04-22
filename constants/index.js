@@ -224,12 +224,10 @@ export const MESSAGES = {
 
 Object.freeze(MESSAGES);
 
-export const PLAN_TYPES = {
-  FREE: 'free',
-  BASIC: 'basic',
-  PREMIUM: 'premium',
-  ENTERPRISE: 'enterprise',
-};
+// Valid plan types from User model
+export const VALID_PLAN_TYPES = ['free', 'starter', 'pro', 'enterprise'];
+export const VALID_PERIODS = ['monthly', 'yearly'];
+export const VALID_PLAN_STATUS= ['active', 'canceled', 'past_due', 'incomplete']
 
 // File Upload Constants
 export const FILE_UPLOAD = {

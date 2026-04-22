@@ -1,6 +1,6 @@
 
 import User from '../models/User.js';
-import { ERROR_MESSAGES, HTTP_STATUS, PLAN_TYPES, JWT_TOKEN_TYPES } from '../constants/index.js';
+import { ERROR_MESSAGES, HTTP_STATUS, VALID_PLAN_TYPES, JWT_TOKEN_TYPES } from '../constants/index.js';
 import { hashPassword, comparePassword } from '../utils/passwordUtils.js';
 import { generateToken, verifyToken } from '../utils/jwtUtils.js';
 import { config } from '../config/env.js';
@@ -54,7 +54,7 @@ export const registerUser = async (userData) => {
     email: email.toLowerCase(),
     password_hash,
     is_email_verified: false,
-    plan_type: PLAN_TYPES.FREE,
+    plan_type: 'free',
     storage_used: 0,
     role: role,
     is_active: true,
