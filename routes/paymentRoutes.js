@@ -1,5 +1,6 @@
 import express from 'express';
-import { paymentCheckout, stripePayment, manageSubscription } from '../controllers/paymentController.js';
+import { paymentCheckout, stripePayment, manageSubscription, billingAnalytics, billingTimeSeries } from '../controllers/paymentController.js';
+import { validateDateRange } from '../validations/dateValidation.js';
 
 const router = express.Router();
 
@@ -8,6 +9,12 @@ router.post('/create-checkout-session', stripePayment);
 
 // Manage subscription (Customer Portal) - for downgrades, cancellations
 router.post('/manage-subscription', manageSubscription);
+
+// Get billing analytics for admin dashboard
+router.get('/billing-analytics', validateDateRange, billingAnalytics);
+
+// Get billing time-series data for charts (New Subscribers vs Payments)
+router.get('/subscribers-payments-graph', validateDateRange, billingTimeSeries);
 
 // Webhook endpoint (raw body parser applied in app.js for /webhook path)
 router.post('/webhook/stripe', paymentCheckout);

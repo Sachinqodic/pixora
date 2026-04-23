@@ -37,14 +37,14 @@ const userSchema = new mongoose.Schema(
     billing_period: {
       type: String,
       enum: ['monthly', 'yearly'],
-      default: null,
+      required: false,
       lowercase: true
     },
     
     subscription_status: {
       type: String,
       enum: ['active', 'canceled', 'past_due', 'incomplete'],
-      default: null,
+      required: false,
       lowercase: true
     },
     

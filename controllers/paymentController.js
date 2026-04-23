@@ -1,4 +1,4 @@
-import { createCheckoutSession, handleWebhook, createCustomerPortalSession } from '../services/paymentService.js';
+import { createCheckoutSession, handleWebhook, createCustomerPortalSession, getBillingAnalytics, getBillingTimeSeries } from '../services/paymentService.js';
 import { HTTP_STATUS, MESSAGES, VALID_PLAN_TYPES, VALID_PERIODS } from '../constants/index.js';
 import { baseController } from './baseController.js';
 
@@ -106,6 +106,42 @@ export const paymentCheckout = baseController.handleRequest(async (req, res) => 
     res,
     result,
     'Webhook received',
+    HTTP_STATUS.OK
+  );
+});
+
+/**
+ * Get billing analytics for admin dashboard
+ * @route GET /billing-analytics
+ */
+export const billingAnalytics = baseController.handleRequest(async (req, res) => {
+  const { startDate, endDate } = req.query;
+
+  // Get billing analytics
+  const result = await getBillingAnalytics(startDate, endDate);
+
+  return baseController.sendSuccess(
+    res,
+    result.data,
+    'Billing analytics retrieved successfully',
+    HTTP_STATUS.OK
+  );
+});
+
+/**
+ * Get billing time-series data for charts
+ * @route GET /subscribers-payments-graph
+ */
+export const billingTimeSeries = baseController.handleRequest(async (req, res) => {
+  const { startDate, endDate } = req.query;
+
+  // Get billing time series
+  const result = await getBillingTimeSeries(startDate, endDate);
+
+  return baseController.sendSuccess(
+    res,
+    result.data,
+    'Billing time series retrieved successfully',
     HTTP_STATUS.OK
   );
 });
