@@ -1,18 +1,45 @@
 import UserInterest from '../models/UserInterest.js';
 import User from '../models/User.js';
-import { ERROR_MESSAGES, HTTP_STATUS } from '../constants/index.js';
+import { ERROR_MESSAGES } from '../constants/index.js';
 import { NotFoundError, ForbiddenError, InternalServerError } from '../utils/errors.js';
 
 /**
- * Get all users
- * @returns {Promise<Array<Object>>} Array of user objects
+ * Get all users with sorting and pagination
+ * @param {Object} query - Query parameters
+ * @param {number} [query.page=1] - Page number
+ * @param {number} [query.limit=10] - Items per page
+ * @param {string} [query.sortBy='created_at'] - Field to sort by
+ * @param {string} [query.sortOrder='desc'] - Sort order ('asc' or 'desc')
+ * @returns {Promise<Object>} Object containing users and pagination metadata
  *
  * @throws {Error} If user retrieval fails
  *
  */
-export const getAllUsersService = async () => {
-  const users = await User.find();
-  return users;
+export const getAllUsersService = async (query = {}) => {
+  const page = parseInt(query.page) || 1;
+  const limit = parseInt(query.limit) || 10;
+  const sortBy = query.sortBy || 'created_at';
+  const sortOrder = query.sortOrder === 'asc' ? 1 : -1;
+
+  const skip = (page - 1) * limit;
+
+  const [users, total] = await Promise.all([
+    User.find()
+      .sort({ [sortBy]: sortOrder })
+      .skip(skip)
+      .limit(limit),
+    User.countDocuments(),
+  ]);
+
+  return {
+    users,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
 };
 
 /**

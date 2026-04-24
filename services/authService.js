@@ -1,11 +1,5 @@
 import User from '../models/User.js';
-import {
-  ERROR_MESSAGES,
-  HTTP_STATUS,
-  PLAN_TYPES,
-  JWT_TOKEN_TYPES,
-  ERROR_CODES,
-} from '../constants/index.js';
+import { ERROR_MESSAGES, JWT_TOKEN_TYPES, ERROR_CODES } from '../constants/index.js';
 import {
   AuthenticationError,
   ForbiddenError,

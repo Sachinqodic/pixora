@@ -45,8 +45,13 @@ export const updateProfile = async (req, res, next) => {
  * @route GET /api/users
  */
 export const getAllUsers = baseController.handleRequest(async (req, res) => {
-  const users = await getAllUsersService();
-  return baseController.sendSuccess(res, { users }, MESSAGES.USERS_FETCHED, HTTP_STATUS.OK);
+  const { users, pagination } = await getAllUsersService(req.query);
+  return baseController.sendSuccess(
+    res,
+    { users, pagination },
+    MESSAGES.USERS_FETCHED,
+    HTTP_STATUS.OK
+  );
 });
 
 /**
