@@ -22,7 +22,10 @@ export const NUMERIC_CONSTANTS = {
   TOKEN_REFRESH_BUFFER_MS: 300000, // 5 minutes buffer for token refresh
   DEFAULT_VALUE: 0,
   DEFAULT_INDEX: 1,
+  DEFAULT_LARGE_VALUE: 1000,
   DEFAULT_DECIMAL_PLACES: 2,
+  DECIMAL_PLACES: 2,
+  MONTHS_IN_YEAR: 12,
   GEOLOCATION_TIMEOUT_MS: 3000,
   FALLBACK_SESSION_EXPIRY_MS: 7 * 24 * 60 * 60 * 1000,
 
@@ -224,12 +227,10 @@ export const MESSAGES = {
 
 Object.freeze(MESSAGES);
 
-export const PLAN_TYPES = {
-  FREE: 'free',
-  BASIC: 'basic',
-  PREMIUM: 'premium',
-  ENTERPRISE: 'enterprise',
-};
+// Valid plan types from User model
+export const VALID_PLAN_TYPES = ['free', 'starter', 'pro', 'enterprise'];
+export const VALID_PERIODS = ['monthly', 'yearly'];
+export const VALID_PLAN_STATUS = ['active', 'canceled', 'past_due', 'incomplete'];
 
 // File Upload Constants
 export const FILE_UPLOAD = {

@@ -29,9 +29,28 @@ const userSchema = new mongoose.Schema(
 
     plan_type: {
       type: String,
-      enum: ['free', 'basic', 'premium', 'enterprise'], // Database-level constraint
+      enum: ['free', 'starter', 'pro', 'enterprise'], // Database-level constraint
       default: 'free',
       lowercase: true,
+    },
+
+    billing_period: {
+      type: String,
+      enum: ['monthly', 'yearly'],
+      required: false,
+      lowercase: true,
+    },
+
+    subscription_status: {
+      type: String,
+      enum: ['active', 'canceled', 'past_due', 'incomplete'],
+      required: false,
+      lowercase: true,
+    },
+
+    subscription_end_date: {
+      type: Date,
+      default: null,
     },
 
     storage_used: {

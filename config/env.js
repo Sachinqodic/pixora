@@ -91,6 +91,29 @@ export const config = {
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
     },
   },
+
+  // Stripe Configuration
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEYS || '',
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+    successUrl: process.env.PAYMENT_SUCCESS_URL || 'http://localhost:3000/payment/success',
+    cancelUrl: process.env.PAYMENT_CANCEL_URL || 'http://localhost:3000/payment/cancel',
+    portalReturnUrl: process.env.STRIPE_PORTAL_RETURN_URL || 'http://localhost:3000/account',
+    prices: {
+      starter: {
+        monthly: process.env.STRIPE_PRICE_STARTER_MONTHLY || '',
+        yearly: process.env.STRIPE_PRICE_STARTER_YEARLY || '',
+      },
+      pro: {
+        monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || '',
+        yearly: process.env.STRIPE_PRICE_PRO_YEARLY || '',
+      },
+      enterprise: {
+        monthly: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY || '',
+        yearly: process.env.STRIPE_PRICE_ENTERPRISE_YEARLY || '',
+      },
+    },
+  },
 };
 
 /**

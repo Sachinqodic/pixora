@@ -66,7 +66,7 @@ export const registerUser = async (userData) => {
     email: email.toLowerCase(),
     password_hash,
     is_email_verified: false,
-    plan_type: PLAN_TYPES.FREE,
+    plan_type: 'free',
     storage_used: 0,
     role: role,
     is_active: true,

@@ -1,11 +1,9 @@
 import express from 'express';
-import { updateProfile } from '../controllers/userController.js';
 import { publicRateLimiter } from '../middlewares/rateLimiter.js';
-import { validateUpdateProfile } from '../validations/userValidation.js';
 import { upload, handleMulterError } from '../helpers/multerConfig.js';
 import { protectedRoute, authChecker } from '../middlewares/authChecker.js';
-import { getAllUsers, addUserInterest } from '../controllers/userController.js';
-import { validateAddUserInterest } from '../validations/userValidation.js';
+import { updateProfile, getAllUsers, addUserInterest } from '../controllers/userController.js';
+import { validateUpdateProfile, validateAddUserInterest } from '../validations/userValidation.js';
 
 const router = express.Router();
 
