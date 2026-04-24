@@ -1,5 +1,5 @@
 import { BaseController } from './baseController.js';
-import { getAllUsersService, addUserInterestService } from '../services/userService.js';
+import { getAllUsersService, addUserInterestService, updateUserProfile } from '../services/userService.js';
 import { HTTP_STATUS, MESSAGES } from '../constants/index.js';
 
 // Create an instance of BaseController to handle common controller logic
@@ -23,7 +23,6 @@ export const updateProfile = async (req, res, next) => {
       const presignedUrl = await generatePresignedUrl(updatedUser.profile_url, 7200); // 2 hours
       updatedUser.profile_url = presignedUrl;
     }
-
     // Return success response
     return baseController.sendSuccess(
         res,

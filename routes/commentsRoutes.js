@@ -1,7 +1,7 @@
 import express from 'express';
-import { createComments, getCommentsByPost, updateComment, deleteComment } from '../controllers/commentController.js';
-import { validateCreateComment, validateUpdateComment } from '../validations/commentValidation.js';
 import { validatePagination } from '../validations/commonValidation.js';
+import { validateCreateComment, validateUpdateComment } from '../validations/commentValidation.js';
+import { createComments, getCommentsByPost, updateComment, deleteComment } from '../controllers/commentController.js';
 
 const router = express.Router();
 

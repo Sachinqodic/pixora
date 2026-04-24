@@ -1,9 +1,9 @@
 import express from 'express';
 import multer from 'multer';
+import { ERROR_MESSAGES } from '../constants/index.js';
+import { handleMulterError } from '../helpers/multerConfig.js';
 import { createPost, getPost, deletePost} from '../controllers/postController.js';
 import { validateCreatePost, validateFileUpload, validatePostId } from '../validations/postValidation.js';
-import { handleMulterError } from '../helpers/multerConfig.js';
-import { ERROR_MESSAGES } from '../constants/index.js';
 
 
 const router = express.Router();
