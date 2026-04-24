@@ -468,6 +468,9 @@ export async function resetRateLimiters() {
   }
 }
 
+// Export Redis client for use in other services (e.g., quota service)
+export { redisClient };
+
 // ============================================================================
 // EXPORTS
 // ============================================================================

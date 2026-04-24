@@ -31,6 +31,8 @@ export const NUMERIC_CONSTANTS = {
 
   MAX_IMAGE_SIZE_BYTES: 5 * 1024 * 1024, // 5MB in bytes
   PRESIGNED_URL_EXPIRY_SECONDS: 120, // 2 minutes
+
+  STORAGE_GUARD_VALUE:1024
 };
 
 Object.freeze(NUMERIC_CONSTANTS);
@@ -139,7 +141,7 @@ export const ERROR_MESSAGES = {
   EMAIL_VERIFICATION_TOKEN_REQUIRED: 'Email verification token is required',
   PASSWORD_RESET: 'Password reset successfully. Now you can login.',
   PASSWORD_RESET_LINK_SENT: 'Password reset link sent successfully',
-
+  
   // User Errors
   USER_AUTHENTICATION_REQUIRED: 'User authentication required',
   USER_NOT_FOUND: 'User not found',
@@ -152,7 +154,7 @@ export const ERROR_MESSAGES = {
   USER_PROFILE_DEACTIVATED: 'User account has been deactivated',
   FAILED_TO_GENERATE_TOKEN: 'Failed to generate token',
   FAILED_TO_GENERATE_REFRESH_TOKEN: 'Failed to generate refresh token',
-  USER_ID_REQUIRED: 'User ID is required to generate token',
+  USER_ID_REQUIRED: "User ID is required to generate token",
 
   // post errors
   POST_NOT_FOUND: 'Pin not found',
@@ -161,6 +163,7 @@ export const ERROR_MESSAGES = {
   COMMENT_NOT_FOUND: 'Comment not found',
   UNAUTHORIZED_COMMENT_EDIT: 'You are not authorized to edit this comment',
   UNAUTHORIZED_COMMENT_DELETE: 'You are not authorized to delete this comment',
+
 
   // s3 errors
   S3_GENERATE_PRESIGNED_URL_FAILED: 'Failed to generate presigned URL',
@@ -174,8 +177,7 @@ export const ERROR_MESSAGES = {
   FILE_BUFFER_EMPTY: 'Image buffer is empty or invalid',
   MEDIA_FILE_REQUIRED: 'Media file is required',
   UNEXPECTED_FILE_FIELD: 'Unexpected file field.',
-  POST_FILE_INVALID_TYPE:
-    'Invalid file type. Only JPG, JPEG, PNG, GIF, MP4, MPEG, and MOV files are allowed.',
+  POST_FILE_INVALID_TYPE: 'Invalid file type. Only JPG, JPEG, PNG, GIF, MP4, MPEG, and MOV files are allowed.',
 
   // Database Errors
   DATABASE_CONNECTION_ERROR: 'Database connection error',
@@ -200,6 +202,11 @@ export const ERROR_MESSAGES = {
   REDIS_CLIENT_DISCONNECTED: 'Redis client disconnected',
   REDIS_RECONNECTION_FAILED: 'Redis reconnection failed after maximum attempts',
   FAILED_TO_INITIALIZE_RATE_LIMITERS: 'Failed to initialize rate limiters',
+
+  // guard Messages 
+   FAILED_TO_GET_STORAGE: 'Failed to retrieve storage usage',
+   QUOTA_COMPLETED:'Storage quota exceeded. Please upgrade your plan or delete some content',
+   QUOTA_EXCEEDING_COMPLETED :'Storage quota exceeding. Please upgrade your plan or delete some content.'
 };
 
 Object.freeze(ERROR_MESSAGES);
@@ -223,20 +230,53 @@ export const MESSAGES = {
   POST_CREATED: 'Post created successfully',
   POST_FETCHED: 'Post fetched successfully',
   POST_DELETED: 'Post deleted successfully',
-};
+}
 
 Object.freeze(MESSAGES);
 
 // Valid plan types from User model
 export const VALID_PLAN_TYPES = ['free', 'starter', 'pro', 'enterprise'];
 export const VALID_PERIODS = ['monthly', 'yearly'];
-export const VALID_PLAN_STATUS = ['active', 'canceled', 'past_due', 'incomplete'];
+export const VALID_PLAN_STATUS= ['active', 'canceled', 'past_due', 'incomplete']
+export const SIZES = ['Bytes', 'KB', 'MB', 'GB'];
+
+
+// Storage Quota Limits by Plan Type and Billing Period (in bytes)
+export const PLAN_STORAGE_LIMITS = {
+  free: {
+    monthly: 5 * 1024 * 1024,      // 5 MB
+    yearly: 5 * 1024 * 1024,       // 5 MB
+  },
+  starter: {
+    monthly: 10 * 1024 * 1024,     // 10 MB
+    yearly: 25 * 1024 * 1024,      // 25 MB
+  },
+  pro: {
+    monthly: 15 * 1024 * 1024,     // 15 MB
+    yearly: 30 * 1024 * 1024,      // 30 MB
+  },
+  enterprise: {
+    monthly: 20 * 1024 * 1024,     // 20 MB
+    yearly: 40 * 1024 * 1024,      // 40 MB
+  },
+};
+
+Object.freeze(PLAN_STORAGE_LIMITS);
+
+// Quota Configuration
+export const QUOTA_CONFIG = {
+  CACHE_TTL_SECONDS: 3600,           // 1 hour cache in Redis
+  SYNC_INTERVAL_MS: 300000,          // Sync to DB every 5 minutes
+  REDIS_KEY_PREFIX: 'quota:user:',   // Redis key prefix for quota
+};
+
+Object.freeze(QUOTA_CONFIG);
 
 // File Upload Constants
 export const FILE_UPLOAD = {
   MAX_FILE_SIZE: NUMERIC_CONSTANTS.MAX_IMAGE_SIZE_BYTES,
   ALLOWED_FORMATS: ['.jpg', '.jpeg', '.png', '.gif'],
-  ALLOWED_MIME_TYPES: ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'],
+  ALLOWED_MIME_TYPES: ['image/jpeg', 'image/png', "image/gif", "image/jpg"],
   UPLOAD_DIR: 'uploads',
   PROFILE_PICTURES_DIR: 'uploads/profile-pictures',
 };

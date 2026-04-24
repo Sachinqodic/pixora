@@ -72,6 +72,7 @@ export const authChecker = async (req, res, next) => {
     if (!user || user?.deleted_at !== null || user?.is_active === false) {
       throw new AuthenticationError(ERROR_MESSAGES.INVALID_TOKEN);
     }
+    req.user=user;
     next();
   } catch (error) {
     return res
