@@ -29,26 +29,16 @@ export const createLike = async (req, res, next) => {
     // Toggle like/unlike
     const result = await createLikeService({
       user_id: authenticatedUserId,
-      post_id
+      post_id,
     });
 
     // Determine message and status code based on action
-    const message = result.action === 'liked'
-      ? MESSAGES.LIKE_CREATED
-      : MESSAGES.LIKE_REMOVED;
+    const message = result.action === 'liked' ? MESSAGES.LIKE_CREATED : MESSAGES.LIKE_REMOVED;
 
-    const statusCode = result.action === 'liked'
-      ? HTTP_STATUS.CREATED
-      : HTTP_STATUS.OK;
+    const statusCode = result.action === 'liked' ? HTTP_STATUS.CREATED : HTTP_STATUS.OK;
 
     // Return success response
-    return baseController.sendSuccess(
-      res,
-      result,
-      message,
-      statusCode
-    );
-
+    return baseController.sendSuccess(res, result, message, statusCode);
   } catch (error) {
     next(error);
   }

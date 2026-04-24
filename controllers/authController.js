@@ -1,4 +1,10 @@
-import { registerUser, loginUser, accessTokenReCreation, forgotPasswordService, resetPasswordService } from '../services/authService.js';
+import {
+  registerUser,
+  loginUser,
+  accessTokenReCreation,
+  forgotPasswordService,
+  resetPasswordService,
+} from '../services/authService.js';
 import { HTTP_STATUS, MESSAGES } from '../constants/index.js';
 import { BaseController } from './baseController.js';
 import { setAuthCookies } from '../utils/cookieUtil.js';
@@ -89,9 +95,5 @@ export const resetPassword = baseController.handleRequest(async (req, res) => {
 
   const user = await resetPasswordService(token, password);
 
-  return baseController.sendSuccess(
-    res,
-    { user },
-    MESSAGES.PASSWORD_RESET
-  );
+  return baseController.sendSuccess(res, { user }, MESSAGES.PASSWORD_RESET);
 });

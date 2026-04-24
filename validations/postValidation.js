@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { createBodyValidationMiddleware, createParamsValidationMiddleware } from '../middlewares/validation.js';
+import {
+  createBodyValidationMiddleware,
+  createParamsValidationMiddleware,
+} from '../middlewares/validation.js';
 
 // Title validator
 const titleValidator = z
@@ -27,7 +30,7 @@ export const createPostSchema = z.object({
  * Validates post id from URL parameters
  */
 export const postIdParamSchema = z.object({
-  id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid post ID format')
+  id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid post ID format'),
 });
 
 /**

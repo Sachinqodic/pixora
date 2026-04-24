@@ -11,7 +11,7 @@ dotenv.config();
 export const config = {
   // Environment
   env: process.env.NODE_ENV || STRING_CONSTANTS.ENVIRONMENT_DEVELOPMENT,
-  
+
   // Server Configuration
   server: {
     port: parseInt(
@@ -79,13 +79,13 @@ export const config = {
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
     jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
     sendGridSendorEmail: process.env.SEND_GRID_SENDOR_EMAIL,
-    sendGridApiKey: process.env.SEND_GRID_API_KEY
+    sendGridApiKey: process.env.SEND_GRID_API_KEY,
   },
 
   // AWS S3 Configuration
   aws: {
     s3: {
-      bucketName: process.env.AWS_S3_BUCKET_NAME|| '',
+      bucketName: process.env.AWS_S3_BUCKET_NAME || '',
       region: process.env.AWS_REGION || '',
       accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
@@ -101,20 +101,14 @@ export function validateConfig() {
   const requiredEnvVars = ['MONGO_URI'];
   const recommendedEnvVars = ['JWT_SECRET', 'SERVER_BASE_URL'];
 
-  const missingVars = requiredEnvVars.filter(
-    (varName) => !process.env[varName]
-  );
+  const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
 
   if (missingVars.length > 0) {
-    console.warn(
-      `⚠️  Warning: Missing required environment variables: ${missingVars.join(', ')}`
-    );
+    console.warn(`⚠️  Warning: Missing required environment variables: ${missingVars.join(', ')}`);
     console.warn('Using default values. Please set these in production.');
   }
 
-  const missingRecommended = recommendedEnvVars.filter(
-    (varName) => !process.env[varName]
-  );
+  const missingRecommended = recommendedEnvVars.filter((varName) => !process.env[varName]);
 
   if (missingRecommended.length > 0) {
     console.warn(

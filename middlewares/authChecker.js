@@ -1,7 +1,13 @@
 import { verifyToken } from '../utils/jwtUtils.js';
-import { ERROR_MESSAGES, STRING_CONSTANTS, HTTP_STATUS, JWT_TOKEN_TYPES } from '../constants/index.js';
+import {
+  ERROR_MESSAGES,
+  STRING_CONSTANTS,
+  HTTP_STATUS,
+  JWT_TOKEN_TYPES,
+} from '../constants/index.js';
 import { config } from '../config/env.js';
 import User from '../models/User.js';
+import { AuthenticationError, ForbiddenError } from '../utils/errors.js';
 
 /**
  * Protected route middleware
@@ -9,32 +15,38 @@ import User from '../models/User.js';
  * @param {Object} res - Response object
  * @param {Function} next - Next middleware
  * @returns {Promise<void>} - Next middleware
- * 
+ *
  * @throws {Error} - If user not found or unauthorized access
- * 
+ *
  */
 export const protectedRoute = async (req, res, next) => {
-    try {
-        const token = req.cookies.accessToken;
-        const decoded = verifyToken(token, config.security.jwtSecret, ERROR_MESSAGES.INVALID_TOKEN, JWT_TOKEN_TYPES.ACCESS_TOKEN);
-        const user = await User.findOne({ _id: decoded.userId });
-        if (!user) {
-            const error = new Error(ERROR_MESSAGES.INVALID_TOKEN);
-            error.statusCode = HTTP_STATUS.UNAUTHORIZED;
-            throw error;
-        }
-
-        if (user?.role !== STRING_CONSTANTS.USER_ROLE_ADMIN 
-            || user?.deleted_at !== null || user?.is_active === false) {
-            const error = new Error(ERROR_MESSAGES.FORBIDDEN_ACCESS);
-            error.statusCode = HTTP_STATUS.FORBIDDEN;
-            throw error;
-        }
-
-        next();
-    } catch (error) {
-        return res.status(error?.statusCode || HTTP_STATUS.UNAUTHORIZED).json({ status: false, message: error?.message || ERROR_MESSAGES.INVALID_TOKEN });
+  try {
+    const token = req.cookies.accessToken;
+    const decoded = verifyToken(
+      token,
+      config.security.jwtSecret,
+      ERROR_MESSAGES.INVALID_TOKEN,
+      JWT_TOKEN_TYPES.ACCESS_TOKEN
+    );
+    const user = await User.findOne({ _id: decoded.userId });
+    if (!user) {
+      throw new AuthenticationError(ERROR_MESSAGES.INVALID_TOKEN);
     }
+
+    if (
+      user?.role !== STRING_CONSTANTS.USER_ROLE_ADMIN ||
+      user?.deleted_at !== null ||
+      user?.is_active === false
+    ) {
+      throw new ForbiddenError(ERROR_MESSAGES.FORBIDDEN_ACCESS);
+    }
+
+    next();
+  } catch (error) {
+    return res
+      .status(error?.statusCode || HTTP_STATUS.UNAUTHORIZED)
+      .json({ status: false, message: error?.message || ERROR_MESSAGES.INVALID_TOKEN });
+  }
 };
 
 /**
@@ -43,22 +55,27 @@ export const protectedRoute = async (req, res, next) => {
  * @param {Object} res - Response object
  * @param {Function} next - Next middleware
  * @returns {Promise<void>} - Next middleware
- * 
+ *
  * @throws {Error} - If user not found or unauthorized access
- * 
+ *
  */
 export const authChecker = async (req, res, next) => {
-    try {
-        const token = req.cookies.accessToken;
-        const decoded = verifyToken(token, config.security.jwtSecret, ERROR_MESSAGES.INVALID_TOKEN, JWT_TOKEN_TYPES.ACCESS_TOKEN);
-        const user = await User.findOne({ _id: decoded.userId });
-        if (!user || user?.deleted_at !== null || user?.is_active === false) {
-            const error = new Error(ERROR_MESSAGES.INVALID_TOKEN);
-            error.statusCode = HTTP_STATUS.UNAUTHORIZED;
-            throw error;
-        }
-        next();
-    } catch (error) {
-        return res.status(error?.statusCode || HTTP_STATUS.UNAUTHORIZED).json({ status: false, message: error?.message || ERROR_MESSAGES.INVALID_TOKEN });
+  try {
+    const token = req.cookies.accessToken;
+    const decoded = verifyToken(
+      token,
+      config.security.jwtSecret,
+      ERROR_MESSAGES.INVALID_TOKEN,
+      JWT_TOKEN_TYPES.ACCESS_TOKEN
+    );
+    const user = await User.findOne({ _id: decoded.userId });
+    if (!user || user?.deleted_at !== null || user?.is_active === false) {
+      throw new AuthenticationError(ERROR_MESSAGES.INVALID_TOKEN);
     }
+    next();
+  } catch (error) {
+    return res
+      .status(error?.statusCode || HTTP_STATUS.UNAUTHORIZED)
+      .json({ status: false, message: error?.message || ERROR_MESSAGES.INVALID_TOKEN });
+  }
 };

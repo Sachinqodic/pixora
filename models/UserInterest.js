@@ -2,35 +2,33 @@ import mongoose from 'mongoose';
 
 const userInterestSchema = new mongoose.Schema(
   {
-    
     user_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-      index: true // Index for fast lookups by user
+      index: true, // Index for fast lookups by user
     },
-    
+
     interest: {
       type: [String], // Array of strings
       default: [],
       validate: {
-        validator: function(arr) {
+        validator: function (arr) {
           // Ensure array doesn't exceed reasonable size
           return arr.length <= 50;
         },
-        message: 'Cannot have more than 50 interests'
-      }
-    }
+        message: 'Cannot have more than 50 interests',
+      },
+    },
   },
   {
     // Automatically manage created_at and updated_at fields
     timestamps: {
       createdAt: 'created_at',
-      updatedAt: 'updated_at'
-    }
+      updatedAt: 'updated_at',
+    },
   }
 );
-
 
 // Index on user_id for fast lookups
 userInterestSchema.index({ user_id: 1 });
@@ -46,11 +44,11 @@ userInterestSchema.index({ user_id: 1, created_at: -1 });
 
 /**
  * Add an interest to the array
- * 
+ *
  * @param {string} newInterest - Interest to add
  * @returns {Promise<void>}
  */
-userInterestSchema.methods.addInterest = async function(newInterest) {
+userInterestSchema.methods.addInterest = async function (newInterest) {
   if (!this.interest.includes(newInterest)) {
     this.interest.push(newInterest);
     await this.save();

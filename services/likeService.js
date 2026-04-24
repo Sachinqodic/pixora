@@ -5,7 +5,6 @@ import { uploadToS3, ORIGINAL_FOLDER, getOptimizedKey, deleteFromS3 } from './s3
 import { NUMERIC_CONSTANTS, ERROR_MESSAGES } from '../constants/index.js';
 import { NotFoundError } from '../utils/errors.js';
 
-
 export const createLikeService = async (likeData) => {
   const { user_id, post_id } = likeData;
 
@@ -16,18 +15,17 @@ export const createLikeService = async (likeData) => {
     throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
   }
 
-  // Find post By Id 
+  // Find post By Id
   const post = await Post.findById(post_id);
 
   if (!post) {
     throw new NotFoundError(ERROR_MESSAGES.POST_NOT_FOUND);
   }
 
-
   // Check if like already exists
   const existingLike = await Like.findOne({
     user_id,
-    post_id
+    post_id,
   });
 
   if (existingLike) {
@@ -35,7 +33,7 @@ export const createLikeService = async (likeData) => {
     await Like.findByIdAndDelete(existingLike._id);
     return {
       liked: false,
-      action: 'unliked'
+      action: 'unliked',
     };
   } else {
     // Like: Create new like
@@ -46,7 +44,7 @@ export const createLikeService = async (likeData) => {
     return {
       liked: true,
       action: 'liked',
-      like
+      like,
     };
   }
 };

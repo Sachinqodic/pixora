@@ -3,7 +3,7 @@ export class BaseController {
     return res.status(statusCode).json({
       success: true,
       message,
-      data
+      data,
     });
   }
 

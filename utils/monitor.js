@@ -29,7 +29,7 @@ function calculateCPUUsage() {
   let totalIdle = 0;
   let totalTick = 0;
 
-  cpus.forEach(cpu => {
+  cpus.forEach((cpu) => {
     for (const type in cpu.times) {
       totalTick += cpu.times[type];
     }
@@ -38,7 +38,7 @@ function calculateCPUUsage() {
 
   const idle = totalIdle / cpus.length;
   const total = totalTick / cpus.length;
-  const usage = 100 - (100 * idle / total);
+  const usage = 100 - (100 * idle) / total;
 
   return usage;
 }

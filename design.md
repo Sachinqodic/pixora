@@ -107,6 +107,7 @@ project-root/
 **Responsibility**: Application initialization and server startup
 
 **Interface**:
+
 - Initializes Express application
 - Loads environment configuration
 - Connects to database
@@ -116,6 +117,7 @@ project-root/
 - Displays server monitoring information
 
 **Dependencies**:
+
 - Express framework
 - dotenv for configuration
 - Database connection module
@@ -131,17 +133,20 @@ project-root/
 **Responsibility**: MongoDB connection management
 
 **Interface**:
+
 ```javascript
 connectDB(): Promise<void>
 ```
 
 **Behavior**:
+
 - Reads MongoDB URI from environment variables
 - Establishes connection to MongoDB
 - Logs success message on connection
 - Logs error and exits process on failure
 
 **Environment Variables**:
+
 - `MONGO_URI`: MongoDB connection string
 
 #### 2.2 Environment Configuration (.env)
@@ -149,6 +154,7 @@ connectDB(): Promise<void>
 **Responsibility**: Store configuration values
 
 **Required Variables**:
+
 - `PORT`: Server port number
 - `MONGO_URI`: MongoDB connection string
 - `NODE_ENV`: Environment (development/production)
@@ -158,16 +164,19 @@ connectDB(): Promise<void>
 **Responsibility**: Apply security protections to all requests
 
 **Interface**:
+
 ```javascript
 setupSecurity(app: Express): void
 ```
 
 **Components**:
+
 - **CORS**: Enables cross-origin resource sharing
 - **Helmet**: Sets secure HTTP headers
 - **Rate Limiter**: Prevents abuse through request throttling
 
 **Configuration**:
+
 - Rate limit: Configurable window and max requests per window
 - CORS: Allow all origins (configurable for production)
 - Helmet: Default secure headers
@@ -177,11 +186,13 @@ setupSecurity(app: Express): void
 **Responsibility**: Centralized error handling for all routes
 
 **Interface**:
+
 ```javascript
 errorHandler(err: Error, req: Request, res: Response, next: NextFunction): void
 ```
 
 **Behavior**:
+
 - Catches all errors from route handlers
 - Determines appropriate HTTP status code
 - Formats error response as JSON
@@ -189,6 +200,7 @@ errorHandler(err: Error, req: Request, res: Response, next: NextFunction): void
 - Returns consistent error structure to client
 
 **Error Response Format**:
+
 ```javascript
 {
   success: false,
@@ -202,6 +214,7 @@ errorHandler(err: Error, req: Request, res: Response, next: NextFunction): void
 **Responsibility**: Define user data structure and validation
 
 **Schema Fields**:
+
 - `name`: String, required
 - `email`: String, required, unique
 - `profilePicture`: String, optional (file path or URL)
@@ -209,6 +222,7 @@ errorHandler(err: Error, req: Request, res: Response, next: NextFunction): void
 - `updatedAt`: Date, auto-generated
 
 **Interface**:
+
 ```javascript
 User.create(userData: Object): Promise<UserDocument>
 User.findById(id: string): Promise<UserDocument>
@@ -220,23 +234,27 @@ User.findByIdAndUpdate(id: string, update: Object): Promise<UserDocument>
 **Responsibility**: Handle file upload business logic and validation
 
 **Interface**:
+
 ```javascript
 uploadProfilePicture(file: File, userId: string): Promise<{ success: boolean, filePath: string }>
 validateFile(file: File): { valid: boolean, error?: string }
 ```
 
 **Validation Rules**:
+
 - Allowed formats: .jpg, .jpeg, .png
 - Maximum size: 10 MB
 - File must be present
 
 **Behavior**:
+
 - Validates file format and size
 - Stores file to disk or cloud storage
 - Updates user model with file reference
 - Returns file path or URL
 
 **Dependencies**:
+
 - File upload constants
 - User model
 - File system or cloud storage SDK
@@ -246,6 +264,7 @@ validateFile(file: File): { valid: boolean, error?: string }
 **Responsibility**: Define file upload constraints
 
 **Exports**:
+
 ```javascript
 {
   MAX_FILE_SIZE: 10 * 1024 * 1024, // 10 MB in bytes
@@ -259,11 +278,13 @@ validateFile(file: File): { valid: boolean, error?: string }
 **Responsibility**: Handle HTTP requests for user operations
 
 **Interface**:
+
 ```javascript
 uploadProfilePicture(req: Request, res: Response, next: NextFunction): Promise<void>
 ```
 
 **Behavior**:
+
 - Extracts file and userId from request
 - Validates request parameters
 - Delegates to file upload service
@@ -271,6 +292,7 @@ uploadProfilePicture(req: Request, res: Response, next: NextFunction): Promise<v
 - Passes errors to error handler
 
 **Response Format**:
+
 ```javascript
 {
   success: true,
@@ -286,9 +308,11 @@ uploadProfilePicture(req: Request, res: Response, next: NextFunction): Promise<v
 **Responsibility**: Map URLs to controller methods
 
 **Routes**:
+
 - `POST /api/users/:userId/profile-picture`: Upload profile picture
 
 **Middleware Chain**:
+
 1. Multer middleware for multipart/form-data parsing
 2. Controller method
 3. Error handler (implicit)
@@ -298,11 +322,13 @@ uploadProfilePicture(req: Request, res: Response, next: NextFunction): Promise<v
 **Responsibility**: Display server status and system metrics
 
 **Interface**:
+
 ```javascript
 displayServerStatus(port: number): void
 ```
 
 **Displayed Information**:
+
 - Server running status
 - Port number
 - Number of CPU cores
@@ -343,14 +369,17 @@ displayServerStatus(port: number): void
 ```
 
 **Indexes**:
+
 - `email`: Unique index for fast lookup and uniqueness constraint
 
 **Validation**:
+
 - `name`: Required, non-empty string
 - `email`: Required, unique, valid email format
 - `profilePicture`: Optional string (file path or URL)
 
 **Timestamps**:
+
 - Mongoose timestamps option enabled for automatic createdAt/updatedAt management
 
 ### File Upload Data Flow
@@ -378,7 +407,6 @@ File Upload Service
             ▼
         Database (MongoDB)
 ```
-
 
 ## Correctness Properties
 
@@ -434,12 +462,12 @@ The application implements a centralized error handling approach using Express e
 
 ### Error Types and Status Codes
 
-| Error Type | HTTP Status | Description |
-|------------|-------------|-------------|
-| Validation Error | 400 | Invalid input data or file validation failure |
-| Not Found | 404 | Resource not found |
-| Rate Limit Exceeded | 429 | Too many requests from client |
-| Server Error | 500 | Unexpected server errors |
+| Error Type          | HTTP Status | Description                                   |
+| ------------------- | ----------- | --------------------------------------------- |
+| Validation Error    | 400         | Invalid input data or file validation failure |
+| Not Found           | 404         | Resource not found                            |
+| Rate Limit Exceeded | 429         | Too many requests from client                 |
+| Server Error        | 500         | Unexpected server errors                      |
 
 ### Error Response Format
 
@@ -514,6 +542,7 @@ Both testing approaches are complementary and necessary. Unit tests catch concre
 **Library**: fast-check (JavaScript/TypeScript property-based testing library)
 
 **Configuration**:
+
 - Minimum 100 iterations per property test
 - Each test tagged with reference to design document property
 - Tag format: `Feature: nodejs-app-structure, Property {number}: {property_text}`
@@ -603,4 +632,3 @@ tests/
 - Fail build if any test fails
 - Generate coverage reports
 - Run property tests with increased iterations (1000+) in CI environment
-

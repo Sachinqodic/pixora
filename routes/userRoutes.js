@@ -13,22 +13,22 @@ const router = express.Router();
  * Get all users
  */
 router.get(
-    '/',
-    // publicRateLimiter, // Apply public rate limiter (10 requests/minute)
-    protectedRoute,
-    getAllUsers
+  '/',
+  // publicRateLimiter, // Apply public rate limiter (10 requests/minute)
+  protectedRoute,
+  getAllUsers
 );
 
 /**
  * Add user interest
  */
 router.post(
-    '/add-user-interest',
-    // publicRateLimiter, // Apply public rate limiter (10 requests/minute)
-    authChecker,
-    validateAddUserInterest,
-    addUserInterest
-)
+  '/add-user-interest',
+  // publicRateLimiter, // Apply public rate limiter (10 requests/minute)
+  authChecker,
+  validateAddUserInterest,
+  addUserInterest
+);
 
 /**
  * Update user profile

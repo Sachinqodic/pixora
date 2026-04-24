@@ -32,11 +32,7 @@ export function extractClientIP(req) {
   }
 
   // Last resort: connection remote address
-  return (
-    req.connection?.remoteAddress ||
-    req.socket?.remoteAddress ||
-    'unknown'
-  );
+  return req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
 }
 
 /**

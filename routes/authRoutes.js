@@ -1,6 +1,17 @@
 import express from 'express';
-import { register, login, refreshToken, forgotPassword, resetPassword } from '../controllers/authController.js';
-import { validateRegister, validateLogin, validateForgotPassword, validateResetPassword } from '../validations/authValidation.js';
+import {
+  register,
+  login,
+  refreshToken,
+  forgotPassword,
+  resetPassword,
+} from '../controllers/authController.js';
+import {
+  validateRegister,
+  validateLogin,
+  validateForgotPassword,
+  validateResetPassword,
+} from '../validations/authValidation.js';
 
 const router = express.Router();
 

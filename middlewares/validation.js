@@ -1,13 +1,12 @@
-
 import { z } from 'zod';
 import { transformZodError } from '../utils/validationErrors.js';
 
 /**
  * Create validation middleware for request body
- * 
+ *
  * This is a higher-order function that takes a Zod schema and returns
  * an Express middleware function that validates the request body against that schema.
- * 
+ *
  * @param {z.ZodSchema} schema - Zod schema to validate against
  * @returns {Function} Express middleware function
  */
@@ -34,10 +33,10 @@ export function createBodyValidationMiddleware(schema) {
 
 /**
  * Create validation middleware for URL parameters
- * 
+ *
  * This is a higher-order function that takes a Zod schema and returns
  * an Express middleware function that validates URL parameters against that schema.
- * 
+ *
  * @param {z.ZodSchema} schema - Zod schema to validate against
  * @returns {Function} Express middleware function
  */
@@ -63,10 +62,10 @@ export function createParamsValidationMiddleware(schema) {
 
 /**
  * Create validation middleware for query parameters
- * 
+ *
  * This is a higher-order function that takes a Zod schema and returns
  * an Express middleware function that validates query parameters against that schema.
- * 
+ *
  * @param {z.ZodSchema} schema - Zod schema to validate against
  * @returns {Function} Express middleware function
  */

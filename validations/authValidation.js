@@ -1,10 +1,8 @@
-
 import { z } from 'zod';
-import { 
-  createBodyValidationMiddleware, 
-  createParamsValidationMiddleware 
+import {
+  createBodyValidationMiddleware,
+  createParamsValidationMiddleware,
 } from '../middlewares/validation.js';
-
 
 /**
  * Password regex pattern
@@ -14,7 +12,8 @@ import {
  * - Must contain number
  * - Must contain special character
  */
-const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+const passwordRegex =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
 
 /**
  * Name regex pattern
@@ -46,16 +45,17 @@ const emailValidator = z
  * - Minimum 1 character (just check if provided)
  * - Actual strength validation happens during registration
  */
-const passwordValidator = z
-  .string()
-  .min(1, 'Password is required');
+const passwordValidator = z.string().min(1, 'Password is required');
 
 // Strong password validator (for registration)
 const strongPasswordValidator = z
   .string()
   .min(8, 'Password must be at least 8 characters long')
   .max(128, 'Password must not exceed 128 characters')
-  .regex(passwordRegex, 'Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character');
+  .regex(
+    passwordRegex,
+    'Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character'
+  );
 
 // Name validator
 const nameValidator = z
@@ -69,14 +69,10 @@ const nameValidator = z
  * MongoDB ObjectId validator
  * - Must be 24 character hex string
  */
-const objectIdValidator = z
-  .string()
-  .regex(objectIdRegex, 'Invalid user ID format');
+const objectIdValidator = z.string().regex(objectIdRegex, 'Invalid user ID format');
 
 // Role validator
-const roleValidator = z
-  .enum(['user', 'admin'])
-  .default('user');
+const roleValidator = z.enum(['user', 'admin']).default('user');
 
 // ============================================================================
 // VALIDATION SCHEMAS
@@ -88,7 +84,7 @@ const roleValidator = z
  */
 export const loginSchema = z.object({
   email: emailValidator,
-  password: passwordValidator
+  password: passwordValidator,
 });
 
 /**
@@ -99,7 +95,7 @@ export const registerSchema = z.object({
   name: nameValidator,
   email: emailValidator,
   password: strongPasswordValidator,
-  role: roleValidator.optional()
+  role: roleValidator.optional(),
 });
 
 /**
@@ -107,7 +103,7 @@ export const registerSchema = z.object({
  * Validates userId from URL parameters
  */
 export const userIdParamSchema = z.object({
-  userId: objectIdValidator
+  userId: objectIdValidator,
 });
 
 /**
@@ -115,7 +111,7 @@ export const userIdParamSchema = z.object({
  * Validates forgot password data
  */
 export const forgotPasswordSchema = z.object({
-  email: emailValidator
+  email: emailValidator,
 });
 
 /**

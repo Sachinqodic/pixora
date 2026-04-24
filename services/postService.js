@@ -6,7 +6,6 @@ import { optimizeMedia } from '../utils/optimization.js';
 import { NUMERIC_CONSTANTS, ERROR_MESSAGES } from '../constants/index.js';
 import { NotFoundError } from '../utils/errors.js';
 
-
 /**
  * Background upload and processing
  * This function runs asynchronously without blocking the API response
@@ -34,7 +33,7 @@ const uploadAndProcess = async (file, postId, userId) => {
     await Post.findByIdAndUpdate(postId, {
       original_media_url: originalKey,
       media_url: optimizedKey,
-      status: 'uploaded'
+      status: 'uploaded',
     });
 
     console.log(`[${postId}] Upload completed, starting optimization`);
@@ -46,13 +45,12 @@ const uploadAndProcess = async (file, postId, userId) => {
       fileName: file.originalname,
       resourceType,
     });
-
   } catch (error) {
     console.error(`[${postId}] Background upload failed:`, error);
     // Update post status to failed
     await Post.findByIdAndUpdate(postId, {
       status: 'failed',
-      error_message: error.message
+      error_message: error.message,
     });
   }
 };
@@ -62,7 +60,7 @@ const uploadAndProcess = async (file, postId, userId) => {
  * @param {Object} postData - Post data (title, description, user_id)
  * @param {Object} file - Uploaded file from multer
  * @returns {Promise<Object>} - Created post
- * 
+ *
  */
 export const createPostService = async (postData, file) => {
   const { title, description, user_id } = postData;
@@ -78,18 +76,18 @@ export const createPostService = async (postData, file) => {
     original_media_url: 'uploading', // Placeholder
     media_url: 'processing', // Placeholder
     resource_type: resourceType,
-    status: 'processing' // New field to track upload status
+    status: 'processing', // New field to track upload status
   });
 
   // Upload and process in background (don't await - fire and forget)
-  uploadAndProcess(file, post._id, user_id).catch(err => {
+  uploadAndProcess(file, post._id, user_id).catch((err) => {
     console.error('Background upload error:', err);
   });
 
   // Return post immediately (API responds in < 1 second)
   return {
     ...post.toObject(),
-    message: 'Post is being processed. Media will be available shortly.'
+    message: 'Post is being processed. Media will be available shortly.',
   };
 };
 
@@ -108,26 +106,29 @@ export const getPostById = async (postId) => {
   // Get likes count and comments count in parallel
   const [totalLikes, totalComments] = await Promise.all([
     Like.countDocuments({ post_id: postId }),
-    Comments.countDocuments({ post_id: postId })
+    Comments.countDocuments({ post_id: postId }),
   ]);
 
   const postObj = post.toObject();
 
   // Generate presigned URLs for original and optimized media
   const { generatePresignedUrl } = await import('./s3Service.js');
-  const mediaUrl = await generatePresignedUrl(postObj.media_url, NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS); // 2 minutes
+  const mediaUrl = await generatePresignedUrl(
+    postObj.media_url,
+    NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+  ); // 2 minutes
 
   postObj.media_url = mediaUrl;
   postObj.totalLikes = totalLikes;
   postObj.totalComments = totalComments;
 
   return postObj;
-}
+};
 
 /**
  * Delete a post by ID
  * @param {string} postId - The ID of the post to delete
- *  
+ *
  * TODO: Need to delete the associated likes, comments, and views from the database, and also from the boards if the post is added to any board.
  */
 export const deletePostById = async (postId) => {
@@ -140,6 +141,6 @@ export const deletePostById = async (postId) => {
   await Promise.all([
     deleteFromS3(post.original_media_url),
     deleteFromS3(post.media_url),
-    Post.findByIdAndDelete(postId)
+    Post.findByIdAndDelete(postId),
   ]);
 };

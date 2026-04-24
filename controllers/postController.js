@@ -1,6 +1,6 @@
-import { createPostService , getPostById, deletePostById } from '../services/postService.js';
+import { createPostService, getPostById, deletePostById } from '../services/postService.js';
 import { HTTP_STATUS, MESSAGES, ERROR_CODES, ERROR_MESSAGES } from '../constants/index.js';
-import {baseController} from './baseController.js';
+import { baseController } from './baseController.js';
 
 /**
  * Create a new post
@@ -28,24 +28,14 @@ export const createPost = async (req, res, next) => {
     }
 
     // Create post with S3 upload
-    const post = await createPostService(
-      { title, description, user_id },
-      file
-    );
+    const post = await createPostService({ title, description, user_id }, file);
 
     // Return success response
-    return baseController.sendSuccess(
-        res,
-        { post },
-        MESSAGES.POST_CREATED,
-        HTTP_STATUS.CREATED
-    );
-
+    return baseController.sendSuccess(res, { post }, MESSAGES.POST_CREATED, HTTP_STATUS.CREATED);
   } catch (error) {
     next(error);
   }
 };
-
 
 /**
  * Get a post by ID
@@ -61,23 +51,17 @@ export const getPost = async (req, res, next) => {
     const post = await getPostById(id);
 
     // Return success response
-    return baseController.sendSuccess(
-        res,
-        { post },
-        MESSAGES.POST_FETCHED,
-        HTTP_STATUS.OK
-    );
-    
+    return baseController.sendSuccess(res, { post }, MESSAGES.POST_FETCHED, HTTP_STATUS.OK);
   } catch (error) {
     next(error);
   }
 };
 
 /*
-* Delete a post by ID
-* @route DELETE /api/posts/:id
-* TODO Required
-*/
+ * Delete a post by ID
+ * @route DELETE /api/posts/:id
+ * TODO Required
+ */
 
 export const deletePost = async (req, res, next) => {
   try {
@@ -88,14 +72,8 @@ export const deletePost = async (req, res, next) => {
     await deletePostById(id);
 
     // Return success response
-    return baseController.sendSuccess(
-        res,
-        null,
-        MESSAGES.POST_DELETED,
-        HTTP_STATUS.OK
-    );
+    return baseController.sendSuccess(res, null, MESSAGES.POST_DELETED, HTTP_STATUS.OK);
   } catch (error) {
     next(error);
-  } 
+  }
 };
-

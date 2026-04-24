@@ -7,10 +7,6 @@ const router = express.Router();
 /**
  * Create a new like for a post
  */
-router.post(
-  '/create',
-  validateCreateLike,
-  createLike
-);
+router.post('/create', validateCreateLike, createLike);
 
 export default router;

@@ -5,12 +5,16 @@ dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import cookieParser from "cookie-parser";
+import cookieParser from 'cookie-parser';
 import { config, validateConfig } from './config/env.js';
 import connectDB, { isDatabaseConnected, disconnectDatabase } from './config/db.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { attachClientIP } from './middlewares/requestLogger.js';
-import { initializeRateLimiters, disconnectRedis, publicRateLimiter } from './middlewares/rateLimiter.js';
+import {
+  initializeRateLimiters,
+  disconnectRedis,
+  publicRateLimiter,
+} from './middlewares/rateLimiter.js';
 import index from './routes/index.js';
 import { displayServerStatus } from './utils/monitor.js';
 import { HTTP_STATUS, STRING_CONSTANTS } from './constants/index.js';
@@ -74,7 +78,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
 
 // Attach client IP to request object
 app.use(attachClientIP);

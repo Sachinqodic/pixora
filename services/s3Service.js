@@ -1,4 +1,9 @@
-import { S3Client, PutObjectCommand, GetObjectCommand ,DeleteObjectCommand} from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { config } from '../config/env.js';
 import { NUMERIC_CONSTANTS } from '../constants/index.js';
@@ -28,7 +33,7 @@ function initializeS3Client() {
 
 /**
  * Generate unique object key for user profile image
- * 
+ *
  * @param {string} userId - User's MongoDB ID
  * @param {string} extension - File extension
  * @returns {string} - Generated object key
@@ -40,7 +45,7 @@ export function generateProfileImageKey(userId, extension = 'jpg') {
 
 /**
  * Generate unique object key for media content (Pinterest clone)
- * 
+ *
  * @param {string} userId - User's MongoDB ID
  * @param {string} extension - File extension
  * @param {string} folder - Folder type ('original' or 'processed')
@@ -52,7 +57,7 @@ export function generateMediaContentKey(userId, extension, folder = ORIGINAL_FOL
 
 /**
  * Upload profile image to S3
- * 
+ *
  * @param {Buffer} imageBuffer - Image buffer from multer
  * @param {string} userId - User's MongoDB ID
  * @param {string} mimetype - Image MIME type
@@ -69,7 +74,7 @@ export async function uploadProfileImage(imageBuffer, userId, mimetype) {
 
     // Get file extension from mimetype
     const extension = mimetype.split('/')[1] || 'jpg';
-    
+
     // Generate unique object key
     const objectKey = generateProfileImageKey(userId, extension);
 
@@ -118,7 +123,7 @@ export async function uploadProfileImage(imageBuffer, userId, mimetype) {
 /**
  * Upload media to S3 (for posts - images/videos)
  * Returns only the S3 object key (not the full URL for security)
- * 
+ *
  * @param {Buffer} fileBuffer - File buffer from multer
  * @param {string} fileName - Original file name
  * @param {string} mimeType - File MIME type
@@ -126,9 +131,15 @@ export async function uploadProfileImage(imageBuffer, userId, mimetype) {
  * @param {string} userId - User's MongoDB ID
  * @returns {Promise<string>} - S3 object key
  */
-export const uploadToS3 = async (fileBuffer, fileName, mimeType, folder = ORIGINAL_FOLDER, userId = null) => {
+export const uploadToS3 = async (
+  fileBuffer,
+  fileName,
+  mimeType,
+  folder = ORIGINAL_FOLDER,
+  userId = null
+) => {
   let key;
-  
+
   if (userId) {
     // Get file extension from filename or mimetype
     const extension = fileName.split('.').pop() || mimeType.split('/')[1] || 'jpg';
@@ -156,7 +167,7 @@ export const uploadToS3 = async (fileBuffer, fileName, mimeType, folder = ORIGIN
 
 /**
  * Get optimized key from original key
- * 
+ *
  * @param {string} originalKey - Original S3 key
  * @returns {string} - Optimized S3 key
  */
@@ -164,19 +175,20 @@ export const getOptimizedKey = (originalKey) => {
   if (!originalKey) return null;
 
   // Replace 'original' folder with 'processed' folder
-  return originalKey.replace(`media-content/${ORIGINAL_FOLDER}/`, `media-content/${PROCESSED_FOLDER}/`);
+  return originalKey.replace(
+    `media-content/${ORIGINAL_FOLDER}/`,
+    `media-content/${PROCESSED_FOLDER}/`
+  );
 };
-
 
 /**
  * Delete object from S3
- * 
+ *
  * @param {string} key - S3 object key to delete
  * @returns {Promise<boolean>} - True if deletion was successful
  */
 export const deleteFromS3 = async (key) => {
   try {
-
     const client = initializeS3Client();
 
     const command = new DeleteObjectCommand({
@@ -196,15 +208,18 @@ export const deleteFromS3 = async (key) => {
 
 /**
  * Generate presigned URL for existing S3 object
- * 
+ *
  * @param {string} objectKey - S3 object key
  * @param {number} expiresIn - Expiration time in seconds (default: 120 seconds = 2 minutes)
  * @returns {Promise<string>} - Presigned URL
  */
-export async function generatePresignedUrl(objectKey, expiresIn = NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS) {
+export async function generatePresignedUrl(
+  objectKey,
+  expiresIn = NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+) {
   try {
     const client = initializeS3Client();
-    
+
     const command = new GetObjectCommand({
       Bucket: config.aws.s3.bucketName,
       Key: objectKey,

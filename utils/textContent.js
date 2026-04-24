@@ -4,7 +4,9 @@
  * @returns {string} HTML content for password reset email
  */
 export const EmailContent = {
-    passwordReset: (verificationUrl) => `<div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f9f9f9; border-radius: 8px;">
+  passwordReset: (
+    verificationUrl
+  ) => `<div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f9f9f9; border-radius: 8px;">
         <h2 style="color: #1a1a2e; margin-bottom: 8px;">Reset your password</h2>
         <p style="color: #666; line-height: 1.6; margin-bottom: 24px;">
           You requested to reset your password. Click the button below to set a new password.
@@ -18,5 +20,5 @@ export const EmailContent = {
         <p style="color: #999; font-size: 12px;">
           This link will expire in 1 hour.
         </p>
-      </div>`
-}
+      </div>`,
+};

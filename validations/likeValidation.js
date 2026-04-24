@@ -4,9 +4,7 @@ import { createBodyValidationMiddleware } from '../middlewares/validation.js';
 /**
  * MongoDB ObjectId validator
  */
-const objectIdValidator = z
-  .string()
-  .regex(/^[0-9a-fA-F]{24}$/, 'Invalid ID format');
+const objectIdValidator = z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid ID format');
 
 /**
  * Create Like Schema

@@ -2,11 +2,11 @@
  * ============================================================================
  * RATE LIMITER MIDDLEWARE
  * ============================================================================
- * 
+ *
  * This module implements a dual-tier rate limiting system using Redis for
  * production and in-memory storage for testing. It provides two separate
  * rate limiters with different thresholds for public and protected routes.
- * 
+ *
  * WHY TWO RATE LIMITERS?
  * ----------------------
  * 1. PUBLIC RATE LIMITER (Stricter - Lower Limits)
@@ -14,19 +14,19 @@
  *    - Uses IP address as the identifier
  *    - Lower limits to prevent brute force attacks and DDoS
  *    - Example: 10 requests per minute
- * 
+ *
  * 2. PROTECTED RATE LIMITER (More Lenient - Higher Limits)
  *    - Applied to authenticated endpoints (user data, file uploads, etc.)
  *    - Uses userId (if authenticated) or IP address as fallback
  *    - Higher limits for legitimate users performing normal operations
  *    - Example: 100 requests per minute
- * 
+ *
  * REDIS VS IN-MEMORY
  * ------------------
  * - Production: Uses Redis for distributed rate limiting across multiple servers
  * - Testing: Uses in-memory storage for fast tests without external dependencies
  * - Redis ensures rate limits persist across server restarts and work in clusters
- * 
+ *
  * RATE LIMIT HEADERS
  * ------------------
  * The middleware sets standard HTTP headers to inform clients about their limits:
@@ -34,7 +34,7 @@
  * - X-RateLimit-Remaining: Number of requests remaining in current window
  * - X-RateLimit-Reset: ISO timestamp when the rate limit resets
  * - Retry-After: Seconds to wait before retrying (when limit exceeded)
- * 
+ *
  * ============================================================================
  */
 
@@ -74,23 +74,22 @@ let protectedLimiter = null;
 
 /**
  * Initialize rate limiters based on environment
- * 
+ *
  * PRODUCTION/DEVELOPMENT:
  * - Creates Redis client with reconnection strategy
  * - Initializes Redis-backed rate limiters
  * - Rate limits persist across server restarts
  * - Works in multi-server deployments
- * 
+ *
  * TEST ENVIRONMENT:
  * - Uses in-memory rate limiters
  * - No external dependencies (Redis not required)
  * - Fast and isolated for testing
- * 
+ *
  * @throws {Error} If Redis connection fails in non-test environments
  */
 export async function initializeRateLimiters() {
   try {
-
     // ========================================================================
     // PRODUCTION/DEVELOPMENT: Use Redis-backed rate limiters
     // ========================================================================
@@ -150,7 +149,7 @@ export async function initializeRateLimiters() {
      * Applied to: Login, register, password reset, public API endpoints
      * Identifier: IP address only (no user authentication)
      * Purpose: Prevent brute force attacks, account enumeration, DDoS
-     * 
+     *
      * Configuration:
      * - points: Maximum requests allowed (e.g., 10)
      * - duration: Time window in seconds (60 = 1 minute)
@@ -171,7 +170,7 @@ export async function initializeRateLimiters() {
      * Applied to: User data, file uploads, authenticated API operations
      * Identifier: userId (if authenticated) OR IP address (fallback)
      * Purpose: Allow legitimate users more freedom while preventing abuse
-     * 
+     *
      * Configuration:
      * - points: Maximum requests allowed (e.g., 100)
      * - duration: Time window in seconds (60 = 1 minute)
@@ -213,33 +212,33 @@ export async function disconnectRedis() {
 /**
  * PUBLIC RATE LIMITER MIDDLEWARE
  * ===============================
- * 
+ *
  * Apply this middleware to PUBLIC/UNAUTHENTICATED routes:
  * - POST /api/auth/login
  * - POST /api/auth/register
  * - POST /api/auth/forgot-password
  * - GET /api/public/*
- * 
+ *
  * HOW IT WORKS:
  * 1. Extracts client IP address (handles proxies, load balancers, CDNs)
  * 2. Checks if IP has exceeded rate limit
  * 3. If within limit: Sets rate limit headers and allows request
  * 4. If exceeded: Returns 429 Too Many Requests with retry information
- * 
+ *
  * RATE LIMIT HEADERS (sent with every response):
  * - X-RateLimit-Limit: Maximum requests allowed (e.g., 10)
  * - X-RateLimit-Remaining: Requests remaining in current window (e.g., 7)
  * - X-RateLimit-Reset: When the limit resets (ISO timestamp)
  * - Retry-After: Seconds to wait before retrying (only when limit exceeded)
- * 
+ *
  * EXAMPLE USAGE:
  * ```javascript
  * import { publicRateLimiter } from './middlewares/rateLimiter.js';
- * 
+ *
  * // Apply to login route
  * app.post('/api/auth/login', publicRateLimiter, loginController);
  * ```
- * 
+ *
  * @param {Request} req - Express request object
  * @param {Response} res - Express response object
  * @param {NextFunction} next - Express next function
@@ -302,7 +301,7 @@ export function publicRateLimiter(req, res, next) {
         'X-RateLimit-Reset',
         new Date(Date.now() + rateLimiterRes.msBeforeNext).toISOString()
       );
-      
+
       // Set Retry-After header (in seconds)
       const retryAfterSeconds = Math.ceil(rateLimiterRes.msBeforeNext / 1000);
       res.setHeader('Retry-After', retryAfterSeconds);
@@ -323,40 +322,40 @@ export function publicRateLimiter(req, res, next) {
 /**
  * PROTECTED RATE LIMITER MIDDLEWARE
  * ==================================
- * 
+ *
  * Apply this middleware to AUTHENTICATED/PROTECTED routes:
  * - GET /api/users/:id
  * - POST /api/users/:id/profile-picture
  * - GET /api/assets
  * - PUT /api/users/:id
- * 
+ *
  * HOW IT WORKS:
  * 1. Uses userId (from authentication middleware) if available
  * 2. Falls back to IP address if user is not authenticated
  * 3. Checks if user/IP has exceeded rate limit
  * 4. If within limit: Sets rate limit headers and allows request
  * 5. If exceeded: Returns 429 Too Many Requests with retry information
- * 
+ *
  * WHY USE USERID?
  * - More accurate tracking per user (not affected by IP changes)
  * - Prevents users from bypassing limits by changing IPs
  * - Allows per-user rate limiting in multi-tenant applications
- * 
+ *
  * RATE LIMIT HEADERS (sent with every response):
  * - X-RateLimit-Limit: Maximum requests allowed (e.g., 100)
  * - X-RateLimit-Remaining: Requests remaining in current window (e.g., 87)
  * - X-RateLimit-Reset: When the limit resets (ISO timestamp)
  * - Retry-After: Seconds to wait before retrying (only when limit exceeded)
- * 
+ *
  * EXAMPLE USAGE:
  * ```javascript
  * import { protectedRateLimiter } from './middlewares/rateLimiter.js';
  * import { authenticate } from './middlewares/auth.js';
- * 
+ *
  * // Apply to protected route (after authentication)
  * app.get('/api/users/:id', authenticate, protectedRateLimiter, getUserController);
  * ```
- * 
+ *
  * @param {Request} req - Express request object (should have req.userId from auth middleware)
  * @param {Response} res - Express response object
  * @param {NextFunction} next - Express next function
@@ -378,7 +377,7 @@ export function protectedRateLimiter(req, res, next) {
    * Priority:
    * 1. Use userId if user is authenticated (set by auth middleware)
    * 2. Fall back to IP address if not authenticated
-   * 
+   *
    * This allows:
    * - Per-user rate limiting for authenticated users
    * - Per-IP rate limiting for unauthenticated users
@@ -422,7 +421,7 @@ export function protectedRateLimiter(req, res, next) {
         'X-RateLimit-Reset',
         new Date(Date.now() + rateLimiterRes.msBeforeNext).toISOString()
       );
-      
+
       // Set Retry-After header (in seconds)
       const retryAfterSeconds = Math.ceil(rateLimiterRes.msBeforeNext / 1000);
       res.setHeader('Retry-After', retryAfterSeconds);
@@ -447,7 +446,7 @@ export function protectedRateLimiter(req, res, next) {
 /**
  * Check if Redis client is connected
  * Useful for health checks and monitoring
- * 
+ *
  * @returns {boolean} True if Redis is connected, false otherwise
  */
 export function isRedisConnected() {
@@ -457,7 +456,7 @@ export function isRedisConnected() {
 /**
  * Reset rate limiters (for testing purposes)
  * Reinitializes rate limiters to clear all rate limit data
- * 
+ *
  * WARNING: Only use in test environment!
  */
 export async function resetRateLimiters() {

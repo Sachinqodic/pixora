@@ -1,6 +1,11 @@
 import multer from 'multer';
-import { HTTP_STATUS, ERROR_MESSAGES ,
-NUMERIC_CONSTANTS, FILE_UPLOAD, ERROR_CODES} from '../constants/index.js';
+import {
+  HTTP_STATUS,
+  ERROR_MESSAGES,
+  NUMERIC_CONSTANTS,
+  FILE_UPLOAD,
+  ERROR_CODES,
+} from '../constants/index.js';
 
 // Multer configuration for image uploading
 export const upload = multer({
@@ -9,11 +14,10 @@ export const upload = multer({
     fileSize: NUMERIC_CONSTANTS.MAX_IMAGE_SIZE_BYTES,
   },
   fileFilter: (req, file, cb) => {
-
     // Get file extension
     const fileExtension = file.originalname
       .toLowerCase()
-      .substring(file.originalname.lastIndexOf("."));
+      .substring(file.originalname.lastIndexOf('.'));
 
     // Validate MIME type and extension
     if (
@@ -22,11 +26,7 @@ export const upload = multer({
     ) {
       cb(null, true);
     } else {
-      cb(
-        new Error(
-          ERROR_MESSAGES.FILE_INVALID_TYPE
-        )
-      );
+      cb(new Error(ERROR_MESSAGES.FILE_INVALID_TYPE));
     }
   },
 });
@@ -34,7 +34,7 @@ export const upload = multer({
 export const handleMulterError = (error, req, res, next) => {
   console.log('Iam in the Handle Multer Error');
   if (error instanceof multer.MulterError) {
-    if (error.code === "LIMIT_FILE_SIZE") {
+    if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
         error: {
@@ -44,7 +44,7 @@ export const handleMulterError = (error, req, res, next) => {
         },
       });
     }
-    if (error.code === "LIMIT_UNEXPECTED_FILE") {
+    if (error.code === 'LIMIT_UNEXPECTED_FILE') {
       return res.status(HTTP_STATUS.BAD_REQUEST).json({
         success: false,
         error: {
@@ -56,7 +56,7 @@ export const handleMulterError = (error, req, res, next) => {
     }
   }
 
-  if (error.message && error.message.includes("Invalid file type")) {
+  if (error.message && error.message.includes('Invalid file type')) {
     return res.status(HTTP_STATUS.BAD_REQUEST).json({
       success: false,
       error: {

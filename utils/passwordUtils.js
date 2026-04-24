@@ -3,10 +3,10 @@ import { config } from '../config/env.js';
 
 /**
  * Hash a plain text password
- * 
+ *
  * @param {string} password - Plain text password to hash
  * @returns {Promise<string>} Hashed password
- * 
+ *
  * @example
  * const hashedPassword = await hashPassword('mySecurePassword123');
  */
@@ -22,18 +22,17 @@ export async function hashPassword(password) {
   // Generate salt and hash password
   const salt = await bcrypt.genSalt(config.security.bcryptSaltRounds);
   const hash = await bcrypt.hash(password, salt);
-  
+
   return hash;
 }
 
-
 /**
  * Compare a plain text password with its hash
- * 
+ *
  * @param {string} password - Plain text password to compare
  * @param {string} hash - Hashed password to compare against
  * @returns {Promise<boolean>} True if password matches hash, false otherwise
- * 
+ *
  * @example
  * const isMatch = await comparePassword('mySecurePassword123', hashedPassword);
  */

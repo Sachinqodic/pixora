@@ -26,12 +26,11 @@ export const updateProfile = async (req, res, next) => {
 
     // Return success response
     return baseController.sendSuccess(
-        res,
-        {  user: updatedUser },
-        MESSAGES.USER_UPDATED,
-        HTTP_STATUS.OK
+      res,
+      { user: updatedUser },
+      MESSAGES.USER_UPDATED,
+      HTTP_STATUS.OK
     );
-
   } catch (error) {
     // Pass errors to error handler
     next(error);
@@ -43,13 +42,8 @@ export const updateProfile = async (req, res, next) => {
  * @route GET /api/users
  */
 export const getAllUsers = baseController.handleRequest(async (req, res) => {
-    const users = await getAllUsersService();
-    return baseController.sendSuccess(
-        res,
-        { users },
-        MESSAGES.USERS_FETCHED,
-        HTTP_STATUS.OK
-    );
+  const users = await getAllUsersService();
+  return baseController.sendSuccess(res, { users }, MESSAGES.USERS_FETCHED, HTTP_STATUS.OK);
 });
 
 /**
@@ -57,12 +51,7 @@ export const getAllUsers = baseController.handleRequest(async (req, res) => {
  * @route POST /api/users/add-user-interest
  */
 export const addUserInterest = baseController.handleRequest(async (req, res) => {
-    const { userId, interests } = req.body;
-    const result = await addUserInterestService(userId, interests);
-    return baseController.sendSuccess(
-        res,
-        result,
-        MESSAGES.INTEREST_ADDED,
-        HTTP_STATUS.OK
-    );
+  const { userId, interests } = req.body;
+  const result = await addUserInterestService(userId, interests);
+  return baseController.sendSuccess(res, result, MESSAGES.INTEREST_ADDED, HTTP_STATUS.OK);
 });

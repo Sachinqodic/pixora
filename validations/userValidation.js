@@ -2,8 +2,11 @@ import z from 'zod';
 import { createBodyValidationMiddleware } from '../middlewares/validation.js';
 
 const addUserInterestSchema = z.object({
-    userId: z.string().trim().min(1, 'User ID is required'),
-    interests: z.array(z.string().trim()).min(1, 'Interests are required').max(10, 'Maximum 10 interests are allowed')
+  userId: z.string().trim().min(1, 'User ID is required'),
+  interests: z
+    .array(z.string().trim())
+    .min(1, 'Interests are required')
+    .max(10, 'Maximum 10 interests are allowed'),
 });
 /**
  * Name regex pattern
@@ -25,7 +28,7 @@ const nameValidator = z
  * Validates user profile update data
  */
 export const updateProfileSchema = z.object({
-  name: nameValidator.optional()
+  name: nameValidator.optional(),
 });
 export const validateAddUserInterest = createBodyValidationMiddleware(addUserInterestSchema);
 export const validateUpdateProfile = createBodyValidationMiddleware(updateProfileSchema);

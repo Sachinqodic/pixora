@@ -19,18 +19,15 @@ Each task builds incrementally on previous work, ensuring the application remain
   - [x] 2.1 Create .env configuration file
     - Define PORT, MONGO_URI, and NODE_ENV variables
     - _Requirements: 1.2_
-  
-  - [ ]* 2.2 Write property test for configuration loading
+  - [ ]\* 2.2 Write property test for configuration loading
     - **Property 1: Configuration Loading**
     - **Validates: Requirements 1.2**
-  
   - [x] 2.3 Create database connection module (config/db.js)
     - Implement connectDB() function that reads MONGO_URI from environment
     - Add connection success logging
     - Add connection error handling with process exit
     - _Requirements: 2.1, 2.2, 2.3_
-  
-  - [ ]* 2.4 Write property test for database connection
+  - [ ]\* 2.4 Write property test for database connection
     - **Property 2: Database Connection with Valid Configuration**
     - **Validates: Requirements 2.1**
 
@@ -40,19 +37,16 @@ Each task builds incrementally on previous work, ensuring the application remain
     - Add Helmet middleware for secure HTTP headers
     - Add express-rate-limit configuration
     - _Requirements: 3.1, 3.2, 3.3, 3.4_
-  
-  - [ ]* 3.2 Write property test for rate limiting enforcement
+  - [ ]\* 3.2 Write property test for rate limiting enforcement
     - **Property 3: Rate Limiting Enforcement**
     - **Validates: Requirements 3.3**
-  
   - [x] 3.3 Create error handler middleware (middlewares/errorHandler.js)
     - Implement errorHandler() function with error catching logic
     - Add HTTP status code determination
     - Add JSON error response formatting
     - Add error logging to console
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
-  
-  - [ ]* 3.4 Write property test for comprehensive error handling
+  - [ ]\* 3.4 Write property test for comprehensive error handling
     - **Property 4: Comprehensive Error Handling**
     - **Validates: Requirements 4.1, 4.2, 4.3, 4.4**
 
@@ -66,12 +60,10 @@ Each task builds incrementally on previous work, ensuring the application remain
     - Add field validation (required, unique, format)
     - Enable timestamps for createdAt and updatedAt
     - _Requirements: 7.1, 7.2, 7.3, 7.4_
-  
-  - [ ]* 5.2 Write property test for user model validation
+  - [ ]\* 5.2 Write property test for user model validation
     - **Property 7: User Model Required Field Validation**
     - **Validates: Requirements 7.4**
-  
-  - [ ]* 5.3 Write unit tests for User model
+  - [ ]\* 5.3 Write unit tests for User model
     - Test successful user creation with valid data
     - Test validation errors for missing required fields
     - Test email uniqueness constraint
@@ -83,23 +75,19 @@ Each task builds incrementally on previous work, ensuring the application remain
     - Define ALLOWED_FORMATS array (.jpg, .jpeg, .png)
     - Define ALLOWED_MIME_TYPES array
     - _Requirements: 6.1, 6.2_
-  
   - [x] 6.2 Create file upload service (services/fileUploadService.js)
     - Implement validateFile() function for format and size validation
     - Implement uploadProfilePicture() function for file storage
     - Add User model update logic for profilePicture field
     - Add error handling for validation failures
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
-  
-  - [ ]* 6.3 Write property test for file validation rules
+  - [ ]\* 6.3 Write property test for file validation rules
     - **Property 5: File Validation Rules**
     - **Validates: Requirements 6.1, 6.2**
-  
-  - [ ]* 6.4 Write property test for complete upload process
+  - [ ]\* 6.4 Write property test for complete upload process
     - **Property 6: Complete Profile Picture Upload Process**
     - **Validates: Requirements 6.5, 6.6**
-  
-  - [ ]* 6.5 Write unit tests for file upload service
+  - [ ]\* 6.5 Write unit tests for file upload service
     - Test validation with valid file formats (.jpg, .jpeg, .png)
     - Test validation rejection for invalid formats (.pdf, .exe)
     - Test validation for file size at boundary (exactly 10 MB)
@@ -115,14 +103,12 @@ Each task builds incrementally on previous work, ensuring the application remain
     - Add service delegation and response formatting
     - Add error passing to error handler
     - _Requirements: 6.5, 6.6, 8.3_
-  
   - [x] 7.2 Create user routes (routes/userRoutes.js)
     - Define POST /api/users/:userId/profile-picture route
     - Configure Multer middleware for multipart/form-data
     - Wire route to controller method
     - _Requirements: 1.3, 8.3_
-  
-  - [ ]* 7.3 Write unit tests for user controller
+  - [ ]\* 7.3 Write unit tests for user controller
     - Test successful profile picture upload response
     - Test error handling for missing file
     - Test error handling for invalid userId
@@ -136,8 +122,7 @@ Each task builds incrementally on previous work, ensuring the application remain
     - Add CPU usage percentage calculation and display
     - Add timestamp logging
     - _Requirements: 5.1, 5.2, 5.3, 5.4_
-  
-  - [ ]* 8.2 Write unit tests for monitor utility
+  - [ ]\* 8.2 Write unit tests for monitor utility
     - Test displayServerStatus() output format
     - Test CPU metrics are displayed correctly
     - _Requirements: 5.1, 5.2, 5.3, 5.4_
@@ -154,8 +139,7 @@ Each task builds incrementally on previous work, ensuring the application remain
     - Start HTTP server on configured PORT
     - Display server monitoring information
     - _Requirements: 1.1, 1.2, 1.3, 3.4, 8.1, 8.2, 8.3_
-  
-  - [ ]* 9.2 Write integration tests for API endpoints
+  - [ ]\* 9.2 Write integration tests for API endpoints
     - Test POST /api/users/:userId/profile-picture with valid file
     - Test POST /api/users/:userId/profile-picture with invalid file format
     - Test POST /api/users/:userId/profile-picture with oversized file
