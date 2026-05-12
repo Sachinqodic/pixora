@@ -18,7 +18,7 @@ export const createComments = async (req, res, next) => {
 
     // Get user_id from authenticated user (req.user.id)
     // For now, using a placeholder
-    const authenticatedUserId = req.user?.id || req.body.user_id;
+    const authenticatedUserId = req.user?.id; 
 
     if (!authenticatedUserId) {
       return res.status(HTTP_STATUS.UNAUTHORIZED).json({
@@ -72,7 +72,7 @@ export const updateComment = async (req, res, next) => {
     const { comment_text } = req.body;
 
     // Get user_id from authenticated user
-    const authenticatedUserId = req.user?.id || req.body.user_id;
+    const authenticatedUserId = req.user?.id;
 
     if (!authenticatedUserId) {
       return res.status(HTTP_STATUS.UNAUTHORIZED).json({
@@ -102,7 +102,7 @@ export const deleteComment = async (req, res, next) => {
     const { commentId } = req.params;
 
     // Get user_id from authenticated user
-    const authenticatedUserId = req.user?.id || req.body.user_id;
+    const authenticatedUserId = req.user?.id;
 
     if (!authenticatedUserId) {
       return res.status(HTTP_STATUS.UNAUTHORIZED).json({

@@ -8,8 +8,8 @@ import {
 const titleValidator = z
   .string()
   .trim()
-  .min(1, 'Title is required')
-  .max(200, 'Title must not exceed 200 characters');
+  .max(200, 'Title must not exceed 200 characters')
+  .optional();
 
 // Description validator
 const descriptionValidator = z

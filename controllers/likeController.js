@@ -13,7 +13,7 @@ export const createLike = async (req, res, next) => {
 
     // Get user_id from authenticated user (req.user.id)
     // For now, using a placeholder
-    const authenticatedUserId = req.user?.id || req.body.user_id;
+    const authenticatedUserId = req.user?.id; 
 
     if (!authenticatedUserId) {
       return res.status(HTTP_STATUS.UNAUTHORIZED).json({

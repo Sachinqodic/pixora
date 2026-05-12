@@ -34,6 +34,7 @@ router.post(
 router.put(
   '/me/update/:id',
   //publicRateLimiter,
+  authChecker,
   upload.single('profileImage'), // Handle single file upload with field name 'profileImage'
   handleMulterError, // Handle multer errors
   validateUpdateProfile, // Validate name field

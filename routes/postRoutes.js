@@ -68,6 +68,7 @@ router.post(
 */
 router.get(
   '/:id',
+  authChecker,
   validatePostId,
   getPost
 );
@@ -77,6 +78,7 @@ router.get(
 */
 router.delete(
   '/:id',
+  authChecker,
   validatePostId,
   deletePost
 )

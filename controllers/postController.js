@@ -14,7 +14,7 @@ export const createPost = async (req, res, next) => {
 
     // Get user_id from authenticated user (req.user.id)
     // For now, using a placeholder
-    const user_id = req.user?.id || req.body.user_id;
+    const user_id = req.user?.id;
 
     if (!user_id) {
       return res.status(HTTP_STATUS.UNAUTHORIZED).json({
