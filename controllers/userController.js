@@ -8,6 +8,46 @@ import { HTTP_STATUS, MESSAGES } from '../constants/index.js';
 
 // Create an instance of BaseController to handle common controller logic
 const baseController = new BaseController();
+
+/**
+ * Get current user profile
+ * @route GET /api/users/profile
+ */
+export const getProfile = async (req, res, next) => {
+  try {
+    const user = req.user;
+
+    if (!user) {
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+        success: false,
+        error: {
+          message: ERROR_MESSAGES.UNAUTHORIZED_ACCESS,
+          code: ERROR_CODES.AUTHORIZATION_ERROR,
+          statusCode: HTTP_STATUS.UNAUTHORIZED,
+        },
+      });
+    }
+
+    const publicProfile = user.getPublicProfile();
+
+    // Generate presigned URL for the profile image if it exists
+    if (publicProfile.profile_url) {
+      const { generatePresignedUrl } = await import('../services/s3Service.js');
+      const presignedUrl = await generatePresignedUrl(publicProfile.profile_url, 7200); // 2 hours
+      publicProfile.profile_url = presignedUrl;
+    }
+
+    return baseController.sendSuccess(
+      res,
+      { user: publicProfile },
+      MESSAGES.POST_FETCHED, // Reusing existing constant or just use string
+      HTTP_STATUS.OK
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * Update user profile
  * @route PUT /api/users/me/update/:id
@@ -15,11 +55,11 @@ const baseController = new BaseController();
 export const updateProfile = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name } = req.body;
+    const { name, bio } = req.body;
     const profileImage = req.file;
 
     // Update user profile
-    const updatedUser = await updateUserProfile(id, { name, profileImage });
+    const updatedUser = await updateUserProfile(id, { name, bio, profileImage });
 
     // Generate presigned URL for the profile image if it exists
     if (updatedUser.profile_url) {

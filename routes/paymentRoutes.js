@@ -23,7 +23,7 @@ router.get('/billing-analytics', authChecker, validateDateRange, billingAnalytic
 // Get billing time-series data for charts (New Subscribers vs Payments)
 router.get('/subscribers-payments-graph', authChecker, validateDateRange, billingTimeSeries);
 
-// Webhook endpoint (raw body parser applied in app.js for /webhook path)
-router.post('/webhook/stripe', authChecker, paymentCheckout);
+// Webhook endpoint (raw body parser applied in app.js for /api/v1/payments/webhook/stripe path)
+router.post('/webhook/stripe', paymentCheckout);
 
 export default router;

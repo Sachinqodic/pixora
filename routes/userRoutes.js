@@ -2,10 +2,20 @@ import express from 'express';
 import { publicRateLimiter } from '../middlewares/rateLimiter.js';
 import { upload, handleMulterError } from '../helpers/multerConfig.js';
 import { protectedRoute, authChecker } from '../middlewares/authChecker.js';
-import { updateProfile, getAllUsers, addUserInterest } from '../controllers/userController.js';
+import {
+  updateProfile,
+  getAllUsers,
+  addUserInterest,
+  getProfile,
+} from '../controllers/userController.js';
 import { validateUpdateProfile, validateAddUserInterest } from '../validations/userValidation.js';
 
 const router = express.Router();
+
+/**
+ * Get current user profile
+ */
+router.get('/profile', authChecker, getProfile);
 
 /**
  * Get all users

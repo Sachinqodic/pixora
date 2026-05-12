@@ -81,6 +81,13 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
+    bio: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 160,
+    },
+
     deleted_at: {
       type: Date,
       default: null,

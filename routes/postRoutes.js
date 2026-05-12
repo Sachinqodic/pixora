@@ -74,7 +74,13 @@ router.post(
 /**
  * Suggest metadata using AI
  */
-router.post('/suggest-metadata', authChecker, upload.single('postMedia'), suggestPostMetadata);
+router.post(
+  '/suggest-metadata',
+  authChecker,
+  upload.single('postMedia'),
+  handleMulterError,
+  suggestPostMetadata
+);
 
 /**
  * Check AI suggestion status (Polling)

@@ -81,7 +81,7 @@ export const addUserInterestService = async (userId, interests) => {
  * @throws {Error} If update fails
  */
 export async function updateUserProfile(userId, updateData) {
-  const { name, profileImage } = updateData;
+  const { name, bio, profileImage } = updateData;
 
   // Find user by ID
   const user = await User.findById(userId);
@@ -98,6 +98,11 @@ export async function updateUserProfile(userId, updateData) {
   // Update name if provided
   if (name) {
     user.name = name;
+  }
+
+  // Update bio if provided
+  if (bio !== undefined) {
+    user.bio = bio;
   }
 
   // Handle profile image upload to S3

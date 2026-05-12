@@ -13,15 +13,14 @@ const addUserInterestSchema = z.object({
  * - Only letters and spaces allowed
  * - 2-50 characters
  */
-const nameRegex = /^[a-zA-Z\s]{2,50}$/;
+const nameRegex = /^[a-zA-Z0-9\s.\-]{2,50}$/;
 
 // Name validator
 const nameValidator = z
   .string()
   .trim()
   .min(2, 'Name must be at least 2 characters long')
-  .max(50, 'Name must not exceed 50 characters')
-  .regex(nameRegex, 'Name must contain only letters and spaces');
+  .max(50, 'Name must not exceed 50 characters');
 
 /**
  * Update Profile Schema
@@ -29,6 +28,7 @@ const nameValidator = z
  */
 export const updateProfileSchema = z.object({
   name: nameValidator.optional(),
+  bio: z.string().trim().max(160, 'Bio must not exceed 160 characters').optional(),
 });
 export const validateAddUserInterest = createBodyValidationMiddleware(addUserInterestSchema);
 export const validateUpdateProfile = createBodyValidationMiddleware(updateProfileSchema);

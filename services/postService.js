@@ -146,14 +146,25 @@ export const getPostById = async (postId) => {
 
   const postObj = post.toObject();
 
-  // Generate presigned URLs for original and optimized media
-  const { generatePresignedUrl } = await import('./s3Service.js');
-  const mediaUrl = await generatePresignedUrl(
-    postObj.media_url,
-    NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
-  ); // 2 minutes
+  // FALLBACK: If optimized media isn't ready yet, use the original high-quality one
+  let keyToUse = postObj.media_url;
+  if (post.status === 'uploaded' || !post.media_url || post.media_url === 'processing') {
+    keyToUse = postObj.original_media_url;
+  }
 
-  postObj.media_url = mediaUrl;
+  // Generate presigned URL
+  const { generatePresignedUrl } = await import('./s3Service.js');
+  try {
+    if (keyToUse && keyToUse !== 'uploading' && keyToUse !== 'processing') {
+      postObj.media_url = await generatePresignedUrl(
+        keyToUse,
+        NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+      );
+    }
+  } catch (err) {
+    console.error(`Failed to generate URL for post ${post._id}:`, err.message);
+  }
+
   postObj.totalLikes = totalLikes;
   postObj.totalComments = totalComments;
 
@@ -183,10 +194,15 @@ export const getAllPostsService = async (page = 1, limit = 20) => {
       const postObj = post.toObject();
 
       try {
-        // If status is still processing, media_url might not be a valid S3 key yet
-        if (post.status === 'uploaded' || post.status === 'ready') {
+        // Determine which URL to generate (fallback to original if optimized is not ready)
+        let keyToUse = post.media_url;
+        if (post.status === 'uploaded' || !post.media_url || post.media_url === 'processing') {
+          keyToUse = post.original_media_url;
+        }
+
+        if (keyToUse && keyToUse !== 'uploading' && keyToUse !== 'processing') {
           postObj.media_url = await generatePresignedUrl(
-            post.media_url,
+            keyToUse,
             NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
           );
         }
