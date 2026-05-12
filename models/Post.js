@@ -18,6 +18,12 @@ const postSchema = new mongoose.Schema(
       trim: true,
     },
 
+    category: {
+      type: String,
+      trim: true,
+      default: 'General',
+    },
+
     media_url: {
       type: String,
       trim: true,

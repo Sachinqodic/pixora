@@ -1,10 +1,25 @@
 import Post from '../models/Post.js';
 import Like from '../models/Likes.js';
 import Comments from '../models/Comments.js';
-import { uploadToS3, ORIGINAL_FOLDER, getOptimizedKey, deleteFromS3 } from './s3Service.js';
+import AiSuggestion from '../models/AiSuggestion.js';
+import {
+  uploadToS3,
+  ORIGINAL_FOLDER,
+  getOptimizedKey,
+  deleteFromS3,
+  uploadToS3AndGetPresignedUrl,
+} from './s3Service.js';
+import { processAiSuggestionInBackground } from './aiService.js';
 import { optimizeMedia } from '../utils/optimization.js';
 import { NUMERIC_CONSTANTS, ERROR_MESSAGES } from '../constants/index.js';
 import { NotFoundError } from '../utils/errors.js';
+import ffmpeg from 'fluent-ffmpeg';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Background upload and processing
@@ -33,7 +48,7 @@ const uploadAndProcess = async (file, postId, userId) => {
     await Post.findByIdAndUpdate(postId, {
       original_media_url: originalKey,
       media_url: optimizedKey,
-      status: 'uploaded'
+      status: 'uploaded',
     });
 
     console.log(`[${postId}] Upload completed, starting optimization`);
@@ -44,18 +59,13 @@ const uploadAndProcess = async (file, postId, userId) => {
     try {
       const { default: User } = await import('../models/User.js');
       const fileSize = file.buffer.length; // Original file size in bytes (actual bytes uploaded to S3)
-      
+
       // Increment storage_used in database
-      await User.findByIdAndUpdate(
-        userId,
-        { $inc: { storage_used: fileSize } },
-        { new: true }
-      );
-            
+      await User.findByIdAndUpdate(userId, { $inc: { storage_used: fileSize } }, { new: true });
+
       // Invalidate Redis cache so next request fetches fresh data
       const { invalidateQuotaCache } = await import('../middlewares/quotaGuard.js');
       await invalidateQuotaCache(userId.toString());
-      
     } catch (quotaError) {
       console.error(`[${postId}] Failed to update storage quota:`, quotaError.message);
       // Don't fail the upload if quota update fails - just log it
@@ -69,13 +79,12 @@ const uploadAndProcess = async (file, postId, userId) => {
       fileName: file.originalname,
       resourceType,
     });
-
   } catch (error) {
     console.error(`[${postId}] Background upload failed:`, error);
     // Update post status to failed
     await Post.findByIdAndUpdate(postId, {
       status: 'failed',
-      error_message: error.message
+      error_message: error.message,
     });
   }
 };
@@ -85,10 +94,10 @@ const uploadAndProcess = async (file, postId, userId) => {
  * @param {Object} postData - Post data (title, description, user_id)
  * @param {Object} file - Uploaded file from multer
  * @returns {Promise<Object>} - Created post
- * 
+ *
  */
 export const createPostService = async (postData, file) => {
-  const { title, description, user_id } = postData;
+  const { title, description, category, user_id } = postData;
 
   // Determine resource type
   const resourceType = file.mimetype.startsWith('image/') ? 'image' : 'video';
@@ -98,21 +107,22 @@ export const createPostService = async (postData, file) => {
     user_id,
     title,
     description,
+    category,
     original_media_url: 'uploading', // Placeholder
     media_url: 'processing', // Placeholder
     resource_type: resourceType,
-    status: 'processing' // New field to track upload status
+    status: 'processing', // New field to track upload status
   });
 
   // Upload and process in background (don't await - fire and forget)
-  uploadAndProcess(file, post._id, user_id).catch(err => {
+  uploadAndProcess(file, post._id, user_id).catch((err) => {
     console.error('Background upload error:', err);
   });
 
   // Return post immediately (API responds in < 1 second)
   return {
     ...post.toObject(),
-    message: 'Post is being processed. Media will be available shortly.'
+    message: 'Post is being processed. Media will be available shortly.',
   };
 };
 
@@ -123,7 +133,7 @@ export const createPostService = async (postData, file) => {
  * TODO:Need to include the likes,and comments, and views count in the response.
  */
 export const getPostById = async (postId) => {
-  const post = await Post.findById(postId);
+  const post = await Post.findById(postId).populate('user_id', 'name avatar');
   if (!post) {
     throw new NotFoundError(ERROR_MESSAGES.POST_NOT_FOUND);
   }
@@ -131,26 +141,80 @@ export const getPostById = async (postId) => {
   // Get likes count and comments count in parallel
   const [totalLikes, totalComments] = await Promise.all([
     Like.countDocuments({ post_id: postId }),
-    Comments.countDocuments({ post_id: postId })
+    Comments.countDocuments({ post_id: postId }),
   ]);
 
   const postObj = post.toObject();
 
   // Generate presigned URLs for original and optimized media
   const { generatePresignedUrl } = await import('./s3Service.js');
-  const mediaUrl = await generatePresignedUrl(postObj.media_url, NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS); // 2 minutes
+  const mediaUrl = await generatePresignedUrl(
+    postObj.media_url,
+    NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+  ); // 2 minutes
 
   postObj.media_url = mediaUrl;
   postObj.totalLikes = totalLikes;
   postObj.totalComments = totalComments;
 
   return postObj;
-}
+};
+
+/**
+ * Get all posts with presigned URLs
+ * @param {Object} query - Query parameters (page, limit)
+ * @returns {Promise<Array>} - List of posts
+ */
+export const getAllPostsService = async (page = 1, limit = 20) => {
+  const skip = (page - 1) * limit;
+
+  // Fetch posts from database, sorted by latest
+  const posts = await Post.find({ status: { $ne: 'failed' } })
+    .sort({ created_at: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate('user_id', 'name avatar');
+
+  const { generatePresignedUrl } = await import('./s3Service.js');
+
+  // Generate presigned URLs for each post
+  const postsWithUrls = await Promise.all(
+    posts.map(async (post) => {
+      const postObj = post.toObject();
+
+      try {
+        // If status is still processing, media_url might not be a valid S3 key yet
+        if (post.status === 'uploaded' || post.status === 'ready') {
+          postObj.media_url = await generatePresignedUrl(
+            post.media_url,
+            NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+          );
+        }
+
+        // Get counts (in a real app, you might want to cache these or include in schema)
+        const [likes, comments] = await Promise.all([
+          Like.countDocuments({ post_id: post._id }),
+          Comments.countDocuments({ post_id: post._id }),
+        ]);
+
+        postObj.totalLikes = likes;
+        postObj.totalComments = comments;
+
+        return postObj;
+      } catch (err) {
+        console.error(`Failed to generate URL for post ${post._id}:`, err.message);
+        return postObj;
+      }
+    })
+  );
+
+  return postsWithUrls;
+};
 
 /**
  * Delete a post by ID
  * @param {string} postId - The ID of the post to delete
- *  
+ *
  * TODO: Need to delete the associated likes, comments, and views from the database, and also from the boards if the post is added to any board.
  */
 export const deletePostById = async (postId) => {
@@ -163,6 +227,63 @@ export const deletePostById = async (postId) => {
   await Promise.all([
     deleteFromS3(post.original_media_url),
     deleteFromS3(post.media_url),
-    Post.findByIdAndDelete(postId)
+    Post.findByIdAndDelete(postId),
   ]);
+};
+
+/**
+ * Initiate AI suggestion process
+ * @param {Object} file - Media file
+ * @param {string} userId - User ID
+ * @returns {Promise<string>} - Suggestion ID
+ */
+export const initiateAiSuggestionService = async (file, userId) => {
+  let bufferToAnalyze = file.buffer;
+  let mimeTypeToAnalyze = file.mimetype;
+
+  // 1. If it's a video, extract a frame
+  if (file.mimetype.startsWith('video/')) {
+    const TEMP_DIR = path.join(__dirname, '../temp');
+    if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+
+    const tempVideoPath = path.join(TEMP_DIR, `temp-${Date.now()}.mp4`);
+    const tempFramePath = path.join(TEMP_DIR, `frame-${Date.now()}.jpg`);
+
+    await fs.promises.writeFile(tempVideoPath, file.buffer);
+
+    await new Promise((resolve, reject) => {
+      ffmpeg(tempVideoPath)
+        .screenshots({
+          timestamps: [1],
+          filename: path.basename(tempFramePath),
+          folder: path.dirname(tempFramePath),
+          size: '640x?',
+        })
+        .on('end', resolve)
+        .on('error', reject);
+    });
+
+    bufferToAnalyze = await fs.promises.readFile(tempFramePath);
+    mimeTypeToAnalyze = 'image/jpeg';
+
+    // Cleanup
+    if (fs.existsSync(tempVideoPath)) fs.promises.unlink(tempVideoPath).catch(console.error);
+    if (fs.existsSync(tempFramePath)) fs.promises.unlink(tempFramePath).catch(console.error);
+  }
+
+  // 2. Upload to S3 (temp-ai folder) and get Presigned URL
+  const mediaUrl = await uploadToS3AndGetPresignedUrl(bufferToAnalyze, mimeTypeToAnalyze, userId);
+
+  // 3. Create a placeholder record in the database
+  const suggestion = await AiSuggestion.create({
+    user_id: userId,
+    status: 'processing',
+  });
+
+  // 4. Trigger the background worker (Fire-and-Forget)
+  processAiSuggestionInBackground(suggestion._id, mediaUrl).catch((err) => {
+    console.error(`Background worker crash for ${suggestion._id}:`, err);
+  });
+
+  return suggestion._id;
 };

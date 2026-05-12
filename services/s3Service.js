@@ -13,6 +13,7 @@ let s3Client = null;
 // S3 folder constants
 export const ORIGINAL_FOLDER = 'original';
 export const PROCESSED_FOLDER = 'processed';
+export const AI_TEMP_FOLDER = 'temp-ai';
 export const BUCKET_NAME = config.aws.s3.bucketName;
 
 /**
@@ -231,6 +232,37 @@ export async function generatePresignedUrl(
     throw new Error(ERROR_MESSAGES.S3_GENERATE_PRESIGNED_URL_FAILED);
   }
 }
+
+/**
+ * Upload a buffer to S3 and return a presigned URL immediately.
+ * Useful for providing temporary access to AI models like OpenAI Vision.
+ *
+ * @param {Buffer} buffer - File buffer
+ * @param {string} mimeType - MIME type
+ * @param {string} userId - User ID
+ * @returns {Promise<string>} - Presigned URL
+ */
+export const uploadToS3AndGetPresignedUrl = async (buffer, mimeType, userId) => {
+  const extension = mimeType.split('/')[1] || 'jpg';
+  const key = `media-content/${AI_TEMP_FOLDER}/${userId}/${Date.now()}.${extension}`;
+
+  const client = initializeS3Client();
+
+  // Upload
+  await client.send(
+    new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: buffer,
+      ContentType: mimeType,
+    })
+  );
+
+  // Generate Presigned URL (valid for 10 minutes for AI processing)
+  const presignedUrl = await generatePresignedUrl(key, 600);
+
+  return presignedUrl;
+};
 
 // Export s3Client for direct use in optimization
 export { s3Client };

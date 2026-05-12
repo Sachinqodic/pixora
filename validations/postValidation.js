@@ -22,6 +22,7 @@ const descriptionValidator = z
 export const createPostSchema = z.object({
   title: titleValidator,
   description: descriptionValidator,
+  category: z.string().trim().optional(),
   user_id: z.string().optional(), // Temporary until auth is implemented
 });
 
