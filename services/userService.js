@@ -1,5 +1,6 @@
 import UserInterest from '../models/UserInterest.js';
 import User from '../models/User.js';
+import Follower from '../models/Follower.js';
 import { ERROR_MESSAGES } from '../constants/index.js';
 import { NotFoundError, ForbiddenError, InternalServerError } from '../utils/errors.js';
 
@@ -137,3 +138,82 @@ export async function updateUserProfile(userId, updateData) {
   // Return user without password hash
   return user.getPublicProfile();
 }
+
+/**
+ * Follow a user
+ * @param {string} followerId - ID of the user who is following
+ * @param {string} followingId - ID of the user being followed
+ * @returns {Promise<Object>} The follow record
+ */
+export const followUserService = async (followerId, followingId) => {
+  if (followerId === followingId) {
+    throw new ForbiddenError('You cannot follow yourself');
+  }
+
+  const followingUser = await User.findById(followingId);
+  if (!followingUser) {
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
+  }
+
+  const existingFollow = await Follower.findOne({
+    follower_id: followerId,
+    following_id: followingId,
+  });
+
+  if (existingFollow) {
+    return existingFollow;
+  }
+
+  const follow = new Follower({
+    follower_id: followerId,
+    following_id: followingId,
+  });
+
+  await follow.save();
+  return follow;
+};
+
+/**
+ * Unfollow a user
+ * @param {string} followerId - ID of the user who is unfollowing
+ * @param {string} followingId - ID of the user being unfollowed
+ * @returns {Promise<Object>} Success message
+ */
+export const unfollowUserService = async (followerId, followingId) => {
+  const result = await Follower.findOneAndDelete({
+    follower_id: followerId,
+    following_id: followingId,
+  });
+
+  if (!result) {
+    throw new NotFoundError('Follow relationship not found');
+  }
+
+  return { message: 'Successfully unfollowed user' };
+};
+
+/**
+ * Get followers of a user
+ * @param {string} userId - User ID
+ * @returns {Promise<Array>} List of followers
+ */
+export const getFollowersService = async (userId) => {
+  const followers = await Follower.find({ following_id: userId })
+    .populate('follower_id', 'name email profile_url bio')
+    .sort({ created_at: -1 });
+
+  return followers.map((f) => f.follower_id);
+};
+
+/**
+ * Get users being followed by a user
+ * @param {string} userId - User ID
+ * @returns {Promise<Array>} List of following users
+ */
+export const getFollowingService = async (userId) => {
+  const following = await Follower.find({ follower_id: userId })
+    .populate('following_id', 'name email profile_url bio')
+    .sort({ created_at: -1 });
+
+  return following.map((f) => f.following_id);
+};

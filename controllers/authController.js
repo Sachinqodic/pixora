@@ -23,6 +23,13 @@ export const register = baseController.handleRequest(async (req, res) => {
 
   setAuthCookies(res, result);
 
+  // Generate presigned URL for the profile image if it exists
+  if (result.user.profile_url) {
+    const { generatePresignedUrl } = await import('../services/s3Service.js');
+    const presignedUrl = await generatePresignedUrl(result.user.profile_url, 7200); // 2 hours
+    result.user.profile_url = presignedUrl;
+  }
+
   return baseController.sendSuccess(
     res,
     { user: result.user },
@@ -42,6 +49,13 @@ export const login = baseController.handleRequest(async (req, res) => {
 
   setAuthCookies(res, result);
 
+  // Generate presigned URL for the profile image if it exists
+  if (result.user.profile_url) {
+    const { generatePresignedUrl } = await import('../services/s3Service.js');
+    const presignedUrl = await generatePresignedUrl(result.user.profile_url, 7200); // 2 hours
+    result.user.profile_url = presignedUrl;
+  }
+
   return baseController.sendSuccess(
     res,
     { user: result.user },
@@ -60,6 +74,13 @@ export const refreshToken = baseController.handleRequest(async (req, res) => {
   const result = await accessTokenReCreation(refreshToken);
 
   setAuthCookies(res, result);
+
+  // Generate presigned URL for the profile image if it exists
+  if (result.user.profile_url) {
+    const { generatePresignedUrl } = await import('../services/s3Service.js');
+    const presignedUrl = await generatePresignedUrl(result.user.profile_url, 7200); // 2 hours
+    result.user.profile_url = presignedUrl;
+  }
 
   return baseController.sendSuccess(
     res,

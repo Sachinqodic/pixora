@@ -1,4 +1,5 @@
 import Post from '../models/Post.js';
+import Follower from '../models/Follower.js';
 import Like from '../models/Likes.js';
 import Comments from '../models/Comments.js';
 import AiSuggestion from '../models/AiSuggestion.js';
@@ -176,11 +177,16 @@ export const getPostById = async (postId) => {
  * @param {Object} query - Query parameters (page, limit)
  * @returns {Promise<Array>} - List of posts
  */
-export const getAllPostsService = async (page = 1, limit = 20) => {
+export const getAllPostsService = async (page = 1, limit = 20, excludeUserId = null) => {
   const skip = (page - 1) * limit;
 
+  const query = { status: { $ne: 'failed' } };
+  if (excludeUserId) {
+    query.user_id = { $ne: excludeUserId };
+  }
+
   // Fetch posts from database, sorted by latest
-  const posts = await Post.find({ status: { $ne: 'failed' } })
+  const posts = await Post.find(query)
     .sort({ created_at: -1 })
     .skip(skip)
     .limit(limit)
@@ -208,13 +214,15 @@ export const getAllPostsService = async (page = 1, limit = 20) => {
         }
 
         // Get counts (in a real app, you might want to cache these or include in schema)
-        const [likes, comments] = await Promise.all([
+        const [likes, comments, authorFollowers] = await Promise.all([
           Like.countDocuments({ post_id: post._id }),
           Comments.countDocuments({ post_id: post._id }),
+          Follower.countDocuments({ following_id: post.user_id?._id }),
         ]);
 
         postObj.totalLikes = likes;
         postObj.totalComments = comments;
+        postObj.authorFollowers = authorFollowers;
 
         return postObj;
       } catch (err) {
@@ -302,4 +310,128 @@ export const initiateAiSuggestionService = async (file, userId) => {
   });
 
   return suggestion._id;
+};
+
+/**
+ * Get posts from users followed by the current user
+ * @param {string} userId - Current user ID
+ * @param {number} [page=1] - Page number
+ * @param {number} [limit=20] - Items per page
+ * @returns {Promise<Array>} - List of posts
+ */
+export const getFollowingPostsService = async (userId, page = 1, limit = 20) => {
+  const skip = (page - 1) * limit;
+
+  // 1. Get IDs of users followed by the current user
+  const following = await Follower.find({ follower_id: userId }).select('following_id');
+  const followingIds = following.map((f) => f.following_id);
+
+  if (followingIds.length === 0) {
+    return [];
+  }
+
+  // 2. Fetch posts from those users
+  const posts = await Post.find({
+    user_id: { $in: followingIds },
+    status: { $ne: 'failed' },
+  })
+    .sort({ created_at: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate('user_id', 'name profile_url');
+
+  const { generatePresignedUrl } = await import('./s3Service.js');
+
+  // 3. Generate presigned URLs and counts
+  const postsWithUrls = await Promise.all(
+    posts.map(async (post) => {
+      const postObj = post.toObject();
+
+      try {
+        let keyToUse = post.media_url;
+        if (post.status === 'uploaded' || !post.media_url || post.media_url === 'processing') {
+          keyToUse = post.original_media_url;
+        }
+
+        if (keyToUse && keyToUse !== 'uploading' && keyToUse !== 'processing') {
+          postObj.media_url = await generatePresignedUrl(
+            keyToUse,
+            NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+          );
+        }
+
+        const [likes, comments, authorFollowers] = await Promise.all([
+          Like.countDocuments({ post_id: post._id }),
+          Comments.countDocuments({ post_id: post._id }),
+          Follower.countDocuments({ following_id: post.user_id?._id }),
+        ]);
+
+        postObj.totalLikes = likes;
+        postObj.totalComments = comments;
+        postObj.authorFollowers = authorFollowers;
+
+        return postObj;
+      } catch (err) {
+        console.error(`Failed to generate URL for post ${post._id}:`, err.message);
+        return postObj;
+      }
+    })
+  );
+
+  return postsWithUrls;
+};
+
+/**
+ * Get posts created by a specific user
+ * @param {string} userId - The ID of the user whose posts to fetch
+ * @param {number} [page=1] - Page number
+ * @param {number} [limit=20] - Items per page
+ * @returns {Promise<Array>} - List of posts
+ */
+export const getUserPostsService = async (userId, page = 1, limit = 20) => {
+  const skip = (page - 1) * limit;
+
+  const posts = await Post.find({ user_id: userId, status: { $ne: 'failed' } })
+    .sort({ created_at: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate('user_id', 'name avatar');
+
+  const { generatePresignedUrl } = await import('./s3Service.js');
+
+  const postsWithUrls = await Promise.all(
+    posts.map(async (post) => {
+      const postObj = post.toObject();
+      try {
+        let keyToUse = post.media_url;
+        if (post.status === 'uploaded' || !post.media_url || post.media_url === 'processing') {
+          keyToUse = post.original_media_url;
+        }
+
+        if (keyToUse && keyToUse !== 'uploading' && keyToUse !== 'processing') {
+          postObj.media_url = await generatePresignedUrl(
+            keyToUse,
+            NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+          );
+        }
+
+        const [likes, comments, authorFollowers] = await Promise.all([
+          Like.countDocuments({ post_id: post._id }),
+          Comments.countDocuments({ post_id: post._id }),
+          Follower.countDocuments({ following_id: post.user_id?._id }),
+        ]);
+
+        postObj.totalLikes = likes;
+        postObj.totalComments = comments;
+        postObj.authorFollowers = authorFollowers;
+
+        return postObj;
+      } catch (err) {
+        console.error(`Failed to generate URL for post ${post._id}:`, err.message);
+        return postObj;
+      }
+    })
+  );
+
+  return postsWithUrls;
 };

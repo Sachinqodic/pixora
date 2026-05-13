@@ -11,6 +11,8 @@ import {
   suggestPostMetadata,
   getAiSuggestionStatus,
   getAllPosts,
+  getFollowingPosts,
+  getUserPosts,
 } from '../controllers/postController.js';
 import {
   validateCreatePost,
@@ -86,6 +88,16 @@ router.post(
  * Check AI suggestion status (Polling)
  */
 router.get('/suggestions/:id', authChecker, getAiSuggestionStatus);
+
+/**
+ * Get posts from followed users
+ */
+router.get('/following', authChecker, getFollowingPosts);
+
+/**
+ * Get posts created by a specific user
+ */
+router.get('/user/:id', authChecker, getUserPosts);
 
 /*
  * Get the Pin by id

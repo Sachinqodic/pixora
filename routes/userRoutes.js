@@ -7,6 +7,11 @@ import {
   getAllUsers,
   addUserInterest,
   getProfile,
+  followUser,
+  unfollowUser,
+  getFollowers,
+  getFollowing,
+  getUserProfile,
 } from '../controllers/userController.js';
 import { validateUpdateProfile, validateAddUserInterest } from '../validations/userValidation.js';
 
@@ -50,5 +55,26 @@ router.put(
   validateUpdateProfile, // Validate name field
   updateProfile
 );
+
+/**
+ * Follow a user
+ */
+router.post('/:id/follow', authChecker, followUser);
+
+/**
+ * Unfollow a user
+ */
+router.delete('/:id/unfollow', authChecker, unfollowUser);
+
+/**
+ * Get followers
+ */
+router.get('/:id/followers', authChecker, getFollowers);
+
+/**
+ * Get following users
+ */
+router.get('/:id/following', authChecker, getFollowing);
+router.get('/:id/profile', authChecker, getUserProfile);
 
 export default router;

@@ -3,6 +3,9 @@ import {
   deletePostById,
   initiateAiSuggestionService,
   getAllPostsService,
+  createPostService,
+  getFollowingPostsService,
+  getUserPostsService,
 } from '../services/postService.js';
 import AiSuggestion from '../models/AiSuggestion.js';
 import { HTTP_STATUS, MESSAGES, ERROR_CODES, ERROR_MESSAGES } from '../constants/index.js';
@@ -17,7 +20,7 @@ export const getAllPosts = async (req, res, next) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
 
-    const posts = await getAllPostsService(page, limit);
+    const posts = await getAllPostsService(page, limit, req.user?._id);
 
     return baseController.sendSuccess(res, { posts }, MESSAGES.POST_FETCHED, HTTP_STATUS.OK);
   } catch (error) {
@@ -165,6 +168,42 @@ export const getAiSuggestionStatus = async (req, res, next) => {
       'Suggestion status fetched',
       HTTP_STATUS.OK
     );
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get posts from followed users
+ * @route GET /api/posts/following
+ */
+export const getFollowingPosts = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+
+    const posts = await getFollowingPostsService(userId, page, limit);
+
+    return baseController.sendSuccess(res, { posts }, MESSAGES.POST_FETCHED, HTTP_STATUS.OK);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get posts created by a specific user
+ * @route GET /api/posts/user/:id
+ */
+export const getUserPosts = async (req, res, next) => {
+  try {
+    const { id: userId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+
+    const posts = await getUserPostsService(userId, page, limit);
+
+    return baseController.sendSuccess(res, { posts }, MESSAGES.POST_FETCHED, HTTP_STATUS.OK);
   } catch (error) {
     next(error);
   }
