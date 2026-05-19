@@ -100,9 +100,10 @@ export const updateBoard = async (req, res, next) => {
  */
 export const savePinToBoard = async (req, res, next) => {
   try {
+    const user_id = req.user._id;
     const { board_id, post_id } = req.body;
 
-    const boardPost = await savePinToBoardService(board_id, post_id);
+    const boardPost = await savePinToBoardService(user_id, board_id, post_id);
 
     return baseController.sendSuccess(
       res,

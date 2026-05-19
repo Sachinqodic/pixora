@@ -212,6 +212,7 @@ export const ERROR_MESSAGES = {
 
   // Board Errors
   BOARD_NOT_FOUND: 'Board not found',
+  PIN_ALREADY_SAVED: 'Pin is already saved to this board',
 };
 
 Object.freeze(ERROR_MESSAGES);

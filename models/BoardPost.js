@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 
 const boardPostSchema = new mongoose.Schema(
   {
+    user_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
     board_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Board',

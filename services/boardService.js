@@ -191,30 +191,35 @@ export const updateBoardService = async (boardId, updateData, file) => {
  * @param {string} postId - Post ID
  * @returns {Promise<Object>} - Created board post entry
  */
-export const savePinToBoardService = async (boardId, postId) => {
+export const savePinToBoardService = async (userId, boardId, postId) => {
   const BoardPost = (await import('../models/BoardPost.js')).default;
   const Post = (await import('../models/Post.js')).default;
 
   // Check if board exists
   const board = await Board.findById(boardId);
   if (!board) {
-    throw new NotFoundError('Board not found');
+    throw new NotFoundError(ERROR_MESSAGES.BOARD_NOT_FOUND);
   }
 
   // Check if post exists
   const post = await Post.findById(postId);
   if (!post) {
-    throw new NotFoundError('Post not found');
+    throw new NotFoundError(ERROR_MESSAGES.POST_NOT_FOUND);
   }
 
   // Check if pin is already saved to this board
-  const existingEntry = await BoardPost.findOne({ board_id: boardId, post_id: postId });
+  const existingEntry = await BoardPost.findOne({
+    user_id: userId,
+    board_id: boardId,
+    post_id: postId,
+  });
   if (existingEntry) {
-    throw new Error('Pin already saved to this board');
+    throw new Error(ERROR_MESSAGES.PIN_ALREADY_SAVED);
   }
 
   // Create board post entry
   const boardPost = await BoardPost.create({
+    user_id: userId,
     board_id: boardId,
     post_id: postId,
   });
