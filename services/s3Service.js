@@ -57,6 +57,18 @@ export function generateMediaContentKey(userId, extension, folder = ORIGINAL_FOL
 }
 
 /**
+ * Generate unique object key for board cover image
+ *
+ * @param {string} userId - User's MongoDB ID
+ * @param {string} extension - File extension
+ * @returns {string} - Generated object key
+ */
+export function generateBoardCoverKey(userId, extension = 'jpg') {
+  const timestamp = Date.now();
+  return `board-cover-images/${userId}/${timestamp}.${extension}`;
+}
+
+/**
  * Upload profile image to S3
  *
  * @param {Buffer} imageBuffer - Image buffer from multer
@@ -263,6 +275,36 @@ export const uploadToS3AndGetPresignedUrl = async (buffer, mimeType, userId) => 
 
   return presignedUrl;
 };
+
+/**
+ * Upload board cover image to S3
+ *
+ * @param {Buffer} fileBuffer - File buffer from multer
+ * @param {string} fileName - Original file name
+ * @param {string} mimeType - File MIME type
+ * @param {string} userId - User's MongoDB ID
+ * @returns {Promise<string>} - S3 object key
+ */
+export async function uploadBoardCoverImage(fileBuffer, fileName, mimeType, userId) {
+  const extension = fileName.split('.').pop() || mimeType.split('/')[1] || 'jpg';
+  const objectKey = generateBoardCoverKey(userId, extension);
+
+  const client = initializeS3Client();
+
+  const command = new PutObjectCommand({
+    Bucket: config.aws.s3.bucketName,
+    Key: objectKey,
+    Body: fileBuffer,
+    ContentType: mimeType,
+    Metadata: {
+      userId: userId.toString(),
+      uploadedAt: new Date().toISOString(),
+    },
+  });
+
+  await client.send(command);
+  return objectKey;
+}
 
 // Export s3Client for direct use in optimization
 export { s3Client };
