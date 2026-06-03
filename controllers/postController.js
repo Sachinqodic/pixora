@@ -20,7 +20,7 @@ export const getAllPosts = async (req, res, next) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
 
-    const posts = await getAllPostsService(page, limit, req.user?._id);
+    const posts = await getAllPostsService(page, limit, null);
 
     return baseController.sendSuccess(res, { posts }, MESSAGES.POST_FETCHED, HTTP_STATUS.OK);
   } catch (error) {

@@ -68,21 +68,23 @@ export const registerUser = async (userData) => {
     deleted_at: null,
   });
 
-  // Generate JWT token
-  const accessToken = await generateToken(
-    newUser._id,
-    config.security.jwtSecret,
-    ERROR_MESSAGES.INVALID_TOKEN,
-    config.security.jwtExpiresIn,
-    JWT_TOKEN_TYPES.ACCESS_TOKEN
-  );
-  const refreshToken = await generateToken(
-    newUser._id,
-    config.security.jwtSecret,
-    ERROR_MESSAGES.INVALID_REFRESH_TOKEN,
-    config.security.jwtRefreshExpiresIn,
-    JWT_TOKEN_TYPES.REFRESH_TOKEN
-  );
+  // Generate JWT tokens in parallel
+  const [accessToken, refreshToken] = await Promise.all([
+    generateToken(
+      newUser._id,
+      config.security.jwtSecret,
+      ERROR_MESSAGES.INVALID_TOKEN,
+      config.security.jwtExpiresIn,
+      JWT_TOKEN_TYPES.ACCESS_TOKEN
+    ),
+    generateToken(
+      newUser._id,
+      config.security.jwtSecret,
+      ERROR_MESSAGES.INVALID_REFRESH_TOKEN,
+      config.security.jwtRefreshExpiresIn,
+      JWT_TOKEN_TYPES.REFRESH_TOKEN
+    ),
+  ]);
 
   // Return user without password hash and tokens
   return {
