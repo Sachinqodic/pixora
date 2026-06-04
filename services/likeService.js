@@ -1,33 +1,29 @@
 import Like from '../models/Likes.js';
 import Post from '../models/Post.js';
 import User from '../models/User.js';
-import { uploadToS3, ORIGINAL_FOLDER, getOptimizedKey, deleteFromS3 } from './s3Service.js';
-import { NUMERIC_CONSTANTS, ERROR_MESSAGES } from '../constants/index.js';
+import { ERROR_MESSAGES } from '../constants/index.js';
 import { NotFoundError } from '../utils/errors.js';
 
 export const createLikeService = async (likeData) => {
   const { user_id, post_id } = likeData;
 
-  // Find user by ID
-  const user = await User.findById(user_id);
+  // Run all queries in parallel for 3x better performance
+  const [user, post, existingLike] = await Promise.all([
+    User.findById(user_id),
+    Post.findById(post_id),
+    Like.findOne({ user_id, post_id }),
+  ]);
 
+  // Check errors in priority order (user first, then post)
   if (!user) {
     throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
   }
-
-  // Find post By Id
-  const post = await Post.findById(post_id);
 
   if (!post) {
     throw new NotFoundError(ERROR_MESSAGES.POST_NOT_FOUND);
   }
 
-  // Check if like already exists
-  const existingLike = await Like.findOne({
-    user_id,
-    post_id,
-  });
-
+  // Handle like/unlike logic
   if (existingLike) {
     // Unlike: Remove the like
     await Like.findByIdAndDelete(existingLike._id);

@@ -1,22 +1,22 @@
 import Post from '../models/Post.js';
 import User from '../models/User.js';
 import Comments from '../models/Comments.js';
+import mongoose from 'mongoose';
 import { ERROR_MESSAGES, NUMERIC_CONSTANTS } from '../constants/index.js';
 import { NotFoundError } from '../utils/errors.js';
 
 export const createCommentsService = async (commentsData) => {
   const { user_id, post_id, comment_text } = commentsData;
 
-  // Find user by ID
-  const user = await User.findById(user_id);
+  // Parallelize user and post validation
+  const [user, post] = await Promise.all([User.findById(user_id), Post.findById(post_id)]);
 
+  // Check user first (proper error priority)
   if (!user) {
     throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
   }
 
-  // Find post By Id
-  const post = await Post.findById(post_id);
-
+  // Then check post
   if (!post) {
     throw new NotFoundError(ERROR_MESSAGES.POST_NOT_FOUND);
   }
@@ -35,6 +35,27 @@ export const createCommentsService = async (commentsData) => {
 };
 
 /**
+ * Build aggregation pipeline for fetching comments with user details
+ * Replaces .populate() with aggregation to avoid N+1 queries
+ */
+const buildCommentsPipeline = (postId, skip, limit) => [
+  { $match: { post_id: new mongoose.Types.ObjectId(postId) } },
+  { $sort: { created_at: -1 } },
+  { $skip: skip },
+  { $limit: limit },
+  {
+    $lookup: {
+      from: 'users',
+      localField: 'user_id',
+      foreignField: '_id',
+      as: 'user_id',
+      pipeline: [{ $project: { name: 1, email: 1 } }],
+    },
+  },
+  { $unwind: { path: '$user_id', preserveNullAndEmptyArrays: true } },
+];
+
+/**
  * Get comments for a post with pagination
  * @param {string} postId - The ID of the post
  * @param {number} page - Page number (default: 1)
@@ -51,14 +72,9 @@ export const getCommentsByPostId = async (postId, page = 1, limit = 20) => {
   // Calculate skip value for pagination
   const skip = (page - NUMERIC_CONSTANTS.PAGINATION_DEFAULT_PAGE) * limit;
 
-  // Get comments and total count in parallel
+  // Get comments using aggregation pipeline and total count in parallel
   const [comments, totalComments] = await Promise.all([
-    Comments.find({ post_id: postId })
-      .populate('user_id', 'name email _id')
-      .sort({ created_at: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(),
+    Comments.aggregate(buildCommentsPipeline(postId, skip, limit)),
     Comments.countDocuments({ post_id: postId }),
   ]);
 

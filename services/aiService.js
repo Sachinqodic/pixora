@@ -25,6 +25,28 @@ export const PIN_CATEGORIES = [
   'Quotes',
   'Cars',
   'Animals',
+
+  // NEW categories (popular on Pinterest)
+  'Beauty & Makeup',
+  'Wedding Planning',
+  'Parenting & Kids',
+  'Education & Learning',
+  'Business & Finance',
+  'Gardening',
+  'Books & Reading',
+  'Music',
+  'Gaming',
+  'Sports',
+  'Health & Wellness',
+  'Recipes & Cooking',
+  'Interior Design',
+  'Tattoos & Body Art',
+  'Hair & Hairstyles',
+  'Jewelry & Accessories',
+  'Outdoor & Camping',
+  'Pets & Pet Care',
+  'Holidays & Events',
+  'Minimalism & Organization',
 ];
 
 /**

@@ -1,8 +1,49 @@
 import UserInterest from '../models/UserInterest.js';
 import User from '../models/User.js';
 import Follower from '../models/Follower.js';
+import mongoose from 'mongoose';
 import { ERROR_MESSAGES } from '../constants/index.js';
 import { NotFoundError, ForbiddenError, InternalServerError } from '../utils/errors.js';
+
+/**
+ * Build aggregation pipeline for fetching followers with user details
+ * Replaces N+1 query problem with single aggregation query
+ */
+const buildFollowersPipeline = (userId) => [
+  { $match: { following_id: new mongoose.Types.ObjectId(userId) } },
+  { $sort: { created_at: -1 } },
+  {
+    $lookup: {
+      from: 'users',
+      localField: 'follower_id',
+      foreignField: '_id',
+      as: 'follower',
+      pipeline: [{ $project: { name: 1, email: 1, profile_url: 1, bio: 1 } }],
+    },
+  },
+  { $unwind: '$follower' },
+  { $replaceRoot: { newRoot: '$follower' } },
+];
+
+/**
+ * Build aggregation pipeline for fetching following users with user details
+ * Replaces N+1 query problem with single aggregation query
+ */
+const buildFollowingPipeline = (userId) => [
+  { $match: { follower_id: new mongoose.Types.ObjectId(userId) } },
+  { $sort: { created_at: -1 } },
+  {
+    $lookup: {
+      from: 'users',
+      localField: 'following_id',
+      foreignField: '_id',
+      as: 'following',
+      pipeline: [{ $project: { name: 1, email: 1, profile_url: 1, bio: 1 } }],
+    },
+  },
+  { $unwind: '$following' },
+  { $replaceRoot: { newRoot: '$following' } },
+];
 
 /**
  * Get all users with sorting and pagination
@@ -26,9 +67,11 @@ export const getAllUsersService = async (query = {}) => {
 
   const [users, total] = await Promise.all([
     User.find()
+      .select('name email profile_url bio plan_type created_at updated_at is_active role')
       .sort({ [sortBy]: sortOrder })
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(), // Convert to plain JS objects for better performance
     User.countDocuments(),
   ]);
 
@@ -57,15 +100,21 @@ export const addUserInterestService = async (userId, interests) => {
   if (!user) {
     throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
   }
+
   // Find or create the UserInterest document for this user
   let userInterest = await UserInterest.findOne({ user_id: userId });
   if (!userInterest) {
     userInterest = new UserInterest({ user_id: userId, interest: [] });
   }
-  // Use the instance method — handles dedup + saves internally
-  for (const interest of interests) {
-    await userInterest.addInterest(interest);
+
+  // Batch add interests - filter out duplicates and add all at once
+  const newInterests = interests.filter((interest) => !userInterest.interest.includes(interest));
+
+  if (newInterests.length > 0) {
+    userInterest.interest.push(...newInterests);
+    await userInterest.save(); // Single save instead of multiple
   }
+
   return userInterest;
 };
 
@@ -109,26 +158,35 @@ export async function updateUserProfile(userId, updateData) {
   // Handle profile image upload to S3
   if (profileImage) {
     const { uploadProfileImage, deleteFromS3 } = await import('./s3Service.js');
-    console.log('Uploading new profile image for user:', user.profile_url);
 
-    // Delete old profile image if exists
+    // Run delete and upload in parallel for better performance
     if (user.profile_url) {
       const oldKey = user.profile_url;
-      await deleteFromS3(oldKey);
-    }
 
-    // Upload new profile image
-    const uploadResult = await uploadProfileImage(
-      profileImage.buffer,
-      userId,
-      profileImage.mimetype
-    );
+      // Execute deletion and upload in parallel
+      const [_, uploadResult] = await Promise.all([
+        deleteFromS3(oldKey),
+        uploadProfileImage(profileImage.buffer, userId, profileImage.mimetype),
+      ]);
 
-    if (uploadResult.success) {
-      // Store the S3 key (not the presigned URL)
-      user.profile_url = uploadResult.objectKey;
+      if (uploadResult.success) {
+        user.profile_url = uploadResult.objectKey;
+      } else {
+        throw new InternalServerError(ERROR_MESSAGES.FILE_UPLOAD_FAILED);
+      }
     } else {
-      throw new InternalServerError(ERROR_MESSAGES.FILE_UPLOAD_FAILED);
+      // No old image, just upload new one
+      const uploadResult = await uploadProfileImage(
+        profileImage.buffer,
+        userId,
+        profileImage.mimetype
+      );
+
+      if (uploadResult.success) {
+        user.profile_url = uploadResult.objectKey;
+      } else {
+        throw new InternalServerError(ERROR_MESSAGES.FILE_UPLOAD_FAILED);
+      }
     }
   }
 
@@ -194,26 +252,22 @@ export const unfollowUserService = async (followerId, followingId) => {
 
 /**
  * Get followers of a user
+ * Uses MongoDB aggregation pipeline to avoid N+1 query problem
  * @param {string} userId - User ID
  * @returns {Promise<Array>} List of followers
  */
 export const getFollowersService = async (userId) => {
-  const followers = await Follower.find({ following_id: userId })
-    .populate('follower_id', 'name email profile_url bio')
-    .sort({ created_at: -1 });
-
-  return followers.map((f) => f.follower_id);
+  const followers = await Follower.aggregate(buildFollowersPipeline(userId));
+  return followers;
 };
 
 /**
  * Get users being followed by a user
+ * Uses MongoDB aggregation pipeline to avoid N+1 query problem
  * @param {string} userId - User ID
  * @returns {Promise<Array>} List of following users
  */
 export const getFollowingService = async (userId) => {
-  const following = await Follower.find({ follower_id: userId })
-    .populate('following_id', 'name email profile_url bio')
-    .sort({ created_at: -1 });
-
-  return following.map((f) => f.following_id);
+  const following = await Follower.aggregate(buildFollowingPipeline(userId));
+  return following;
 };

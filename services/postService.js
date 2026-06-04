@@ -3,6 +3,7 @@ import Follower from '../models/Follower.js';
 import Like from '../models/Likes.js';
 import Comments from '../models/Comments.js';
 import AiSuggestion from '../models/AiSuggestion.js';
+import mongoose from 'mongoose';
 import {
   uploadToS3,
   ORIGINAL_FOLDER,
@@ -21,6 +22,139 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Build aggregation stages for counting likes, comments, and author followers
+ * This replaces 3 separate queries per post with a single aggregation pipeline
+ */
+const buildCountStages = () => [
+  {
+    $lookup: {
+      from: 'likes',
+      let: { postId: '$_id' },
+      pipeline: [{ $match: { $expr: { $eq: ['$post_id', '$$postId'] } } }, { $count: 'count' }],
+      as: 'likesCount',
+    },
+  },
+  {
+    $lookup: {
+      from: 'comments',
+      let: { postId: '$_id' },
+      pipeline: [{ $match: { $expr: { $eq: ['$post_id', '$$postId'] } } }, { $count: 'count' }],
+      as: 'commentsCount',
+    },
+  },
+  {
+    $lookup: {
+      from: 'followers',
+      let: { authorId: '$user_id._id' },
+      pipeline: [
+        { $match: { $expr: { $eq: ['$following_id', '$$authorId'] } } },
+        { $count: 'count' },
+      ],
+      as: 'authorFollowersCount',
+    },
+  },
+  {
+    $addFields: {
+      totalLikes: { $ifNull: [{ $arrayElemAt: ['$likesCount.count', 0] }, 0] },
+      totalComments: { $ifNull: [{ $arrayElemAt: ['$commentsCount.count', 0] }, 0] },
+      authorFollowers: { $ifNull: [{ $arrayElemAt: ['$authorFollowersCount.count', 0] }, 0] },
+    },
+  },
+  { $project: { likesCount: 0, commentsCount: 0, authorFollowersCount: 0 } },
+];
+
+/**
+ * Attach presigned URLs to posts
+ * Centralizes URL generation logic in one place
+ */
+const attachPresignedUrls = async (posts) => {
+  if (posts.length === 0) return posts;
+  const { generatePresignedUrl } = await import('./s3Service.js');
+
+  return Promise.all(
+    posts.map(async (post) => {
+      try {
+        let keyToUse = post.media_url;
+        if (post.status === 'uploaded' || !post.media_url || post.media_url === 'processing') {
+          keyToUse = post.original_media_url;
+        }
+        if (keyToUse && keyToUse !== 'uploading' && keyToUse !== 'processing') {
+          post.media_url = await generatePresignedUrl(
+            keyToUse,
+            NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+          );
+        }
+      } catch (err) {
+        console.error(`Failed to generate URL for post ${post._id}:`, err.message);
+      }
+      return post;
+    })
+  );
+};
+
+/**
+ * Build aggregation pipeline for following posts
+ */
+const buildFollowingPostsPipeline = (userId, skip, limit) => [
+  {
+    $lookup: {
+      from: 'followers',
+      let: { postAuthor: '$user_id' },
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $eq: ['$follower_id', new mongoose.Types.ObjectId(userId)] },
+                { $eq: ['$following_id', '$$postAuthor'] },
+              ],
+            },
+          },
+        },
+      ],
+      as: 'followCheck',
+    },
+  },
+  { $match: { followCheck: { $ne: [] }, status: { $ne: 'failed' } } },
+  { $sort: { created_at: -1 } },
+  { $skip: skip },
+  { $limit: limit },
+  {
+    $lookup: {
+      from: 'users',
+      localField: 'user_id',
+      foreignField: '_id',
+      as: 'user_id',
+      pipeline: [{ $project: { name: 1, profile_url: 1 } }],
+    },
+  },
+  { $unwind: { path: '$user_id', preserveNullAndEmpty: true } },
+  ...buildCountStages(),
+  { $project: { followCheck: 0 } },
+];
+
+/**
+ * Build aggregation pipeline for user posts
+ */
+const buildUserPostsPipeline = (userId, skip, limit) => [
+  { $match: { user_id: new mongoose.Types.ObjectId(userId), status: { $ne: 'failed' } } },
+  { $sort: { created_at: -1 } },
+  { $skip: skip },
+  { $limit: limit },
+  {
+    $lookup: {
+      from: 'users',
+      localField: 'user_id',
+      foreignField: '_id',
+      as: 'user_id',
+      pipeline: [{ $project: { name: 1, profile_url: 1 } }],
+    },
+  },
+  { $unwind: { path: '$user_id', preserveNullAndEmpty: true } },
+  ...buildCountStages(),
+];
 
 /**
  * Background upload and processing
@@ -314,6 +448,7 @@ export const initiateAiSuggestionService = async (file, userId) => {
 
 /**
  * Get posts from users followed by the current user
+ * Uses MongoDB aggregation pipeline for efficient querying
  * @param {string} userId - Current user ID
  * @param {number} [page=1] - Page number
  * @param {number} [limit=20] - Items per page
@@ -321,68 +456,14 @@ export const initiateAiSuggestionService = async (file, userId) => {
  */
 export const getFollowingPostsService = async (userId, page = 1, limit = 20) => {
   const skip = (page - 1) * limit;
+  const posts = await Post.aggregate(buildFollowingPostsPipeline(userId, skip, limit));
 
-  // 1. Get IDs of users followed by the current user
-  const following = await Follower.find({ follower_id: userId }).select('following_id');
-  const followingIds = following.map((f) => f.following_id);
-
-  if (followingIds.length === 0) {
-    return [];
-  }
-
-  // 2. Fetch posts from those users
-  const posts = await Post.find({
-    user_id: { $in: followingIds },
-    status: { $ne: 'failed' },
-  })
-    .sort({ created_at: -1 })
-    .skip(skip)
-    .limit(limit)
-    .populate('user_id', 'name profile_url');
-
-  const { generatePresignedUrl } = await import('./s3Service.js');
-
-  // 3. Generate presigned URLs and counts
-  const postsWithUrls = await Promise.all(
-    posts.map(async (post) => {
-      const postObj = post.toObject();
-
-      try {
-        let keyToUse = post.media_url;
-        if (post.status === 'uploaded' || !post.media_url || post.media_url === 'processing') {
-          keyToUse = post.original_media_url;
-        }
-
-        if (keyToUse && keyToUse !== 'uploading' && keyToUse !== 'processing') {
-          postObj.media_url = await generatePresignedUrl(
-            keyToUse,
-            NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
-          );
-        }
-
-        const [likes, comments, authorFollowers] = await Promise.all([
-          Like.countDocuments({ post_id: post._id }),
-          Comments.countDocuments({ post_id: post._id }),
-          Follower.countDocuments({ following_id: post.user_id?._id }),
-        ]);
-
-        postObj.totalLikes = likes;
-        postObj.totalComments = comments;
-        postObj.authorFollowers = authorFollowers;
-
-        return postObj;
-      } catch (err) {
-        console.error(`Failed to generate URL for post ${post._id}:`, err.message);
-        return postObj;
-      }
-    })
-  );
-
-  return postsWithUrls;
+  return attachPresignedUrls(posts);
 };
 
 /**
  * Get posts created by a specific user
+ * Uses MongoDB aggregation pipeline for efficient querying
  * @param {string} userId - The ID of the user whose posts to fetch
  * @param {number} [page=1] - Page number
  * @param {number} [limit=20] - Items per page
@@ -390,48 +471,7 @@ export const getFollowingPostsService = async (userId, page = 1, limit = 20) => 
  */
 export const getUserPostsService = async (userId, page = 1, limit = 20) => {
   const skip = (page - 1) * limit;
+  const posts = await Post.aggregate(buildUserPostsPipeline(userId, skip, limit));
 
-  const posts = await Post.find({ user_id: userId, status: { $ne: 'failed' } })
-    .sort({ created_at: -1 })
-    .skip(skip)
-    .limit(limit)
-    .populate('user_id', 'name avatar');
-
-  const { generatePresignedUrl } = await import('./s3Service.js');
-
-  const postsWithUrls = await Promise.all(
-    posts.map(async (post) => {
-      const postObj = post.toObject();
-      try {
-        let keyToUse = post.media_url;
-        if (post.status === 'uploaded' || !post.media_url || post.media_url === 'processing') {
-          keyToUse = post.original_media_url;
-        }
-
-        if (keyToUse && keyToUse !== 'uploading' && keyToUse !== 'processing') {
-          postObj.media_url = await generatePresignedUrl(
-            keyToUse,
-            NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
-          );
-        }
-
-        const [likes, comments, authorFollowers] = await Promise.all([
-          Like.countDocuments({ post_id: post._id }),
-          Comments.countDocuments({ post_id: post._id }),
-          Follower.countDocuments({ following_id: post.user_id?._id }),
-        ]);
-
-        postObj.totalLikes = likes;
-        postObj.totalComments = comments;
-        postObj.authorFollowers = authorFollowers;
-
-        return postObj;
-      } catch (err) {
-        console.error(`Failed to generate URL for post ${post._id}:`, err.message);
-        return postObj;
-      }
-    })
-  );
-
-  return postsWithUrls;
+  return attachPresignedUrls(posts);
 };
