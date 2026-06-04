@@ -205,7 +205,7 @@ export async function updateUserProfile(userId, updateData) {
  */
 export const followUserService = async (followerId, followingId) => {
   if (followerId === followingId) {
-    throw new ForbiddenError('You cannot follow yourself');
+    throw new ForbiddenError(ERROR_MESSAGES.FOLLOW_SELF_FORBIDDEN);
   }
 
   const followingUser = await User.findById(followingId);
@@ -244,10 +244,43 @@ export const unfollowUserService = async (followerId, followingId) => {
   });
 
   if (!result) {
-    throw new NotFoundError('Follow relationship not found');
+    throw new NotFoundError(ERROR_MESSAGES.FOLLOW_RELATIONSHIP_NOT_FOUND);
   }
 
   return { message: 'Successfully unfollowed user' };
+};
+
+/**
+ * Get user profile by ID
+ * @param {string} userId - User ID
+ * @returns {Promise<Object>} User profile with follower/following counts and presigned URL
+ */
+export const getUserByIdService = async (userId) => {
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
+  }
+
+  const publicProfile = user.getPublicProfile();
+
+  // Fetch followers and following counts in parallel
+  const [followersCount, followingCount] = await Promise.all([
+    Follower.countDocuments({ following_id: user._id }),
+    Follower.countDocuments({ follower_id: user._id }),
+  ]);
+
+  publicProfile.followers_count = followersCount;
+  publicProfile.following_count = followingCount;
+
+  // Generate presigned URL for the profile image if it exists
+  if (publicProfile.profile_url) {
+    const { generatePresignedUrl } = await import('./s3Service.js');
+    const presignedUrl = await generatePresignedUrl(publicProfile.profile_url, 7200);
+    publicProfile.profile_url = presignedUrl;
+  }
+
+  return publicProfile;
 };
 
 /**

@@ -3,6 +3,8 @@ import {
   createBoardService,
   deleteBoardService,
   getBoardsService,
+  getBoardByIdService,
+  getBoardPinsService,
   updateBoardService,
   savePinToBoardService,
   removePinFromBoardService,
@@ -102,7 +104,6 @@ export const updateBoard = async (req, res, next) => {
 export const savePinToBoard = async (req, res, next) => {
   try {
     const user_id = req.user._id;
-    console.log('user_id123', user_id);
     const { board_id, post_id } = req.body;
 
     const boardPost = await savePinToBoardService(user_id, board_id, post_id);
@@ -132,6 +133,44 @@ export const removePinFromBoard = async (req, res, next) => {
     await removePinFromBoardService(board_id, post_id, user_id);
 
     return baseController.sendSuccess(res, null, MESSAGES.PIN_REMOVED_FROM_BOARD, HTTP_STATUS.OK);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get board by ID
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ * @param {Function} next - Next middleware
+ */
+export const getBoardById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const board = await getBoardByIdService(id);
+
+    return baseController.sendSuccess(res, board, MESSAGES.BOARD_FETCHED, HTTP_STATUS.OK);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get pins in a board
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ * @param {Function} next - Next middleware
+ */
+export const getBoardPins = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const page = parseInt(req.query.page) || NUMERIC_CONSTANTS.PAGINATION_DEFAULT_PAGE;
+    const limit = parseInt(req.query.limit) || NUMERIC_CONSTANTS.PAGINATION_DEFAULT_LIMIT;
+
+    const result = await getBoardPinsService(id, page, limit);
+
+    return baseController.sendSuccess(res, result, MESSAGES.BOARD_PINS_FETCHED, HTTP_STATUS.OK);
   } catch (error) {
     next(error);
   }

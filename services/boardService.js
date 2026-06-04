@@ -1,9 +1,166 @@
 import Board from '../models/Board.js';
 import BoardPost from '../models/BoardPost.js';
 import Post from '../models/Post.js';
+import mongoose from 'mongoose';
 import { uploadBoardCoverImage, generatePresignedUrl, deleteFromS3 } from './s3Service.js';
-import { NotFoundError, AuthorizationError, ValidationError } from '../utils/errors.js';
+import { NotFoundError } from '../utils/errors.js';
 import { ERROR_MESSAGES, NUMERIC_CONSTANTS } from '../constants/index.js';
+
+/**
+ * Attach presigned URLs to boards
+ * Centralizes URL generation logic
+ */
+const attachPresignedUrlsToBoards = async (boards) => {
+  if (boards.length === NUMERIC_CONSTANTS.DEFAULT_VALUE) return boards;
+
+  return Promise.all(
+    boards.map(async (board) => {
+      if (board.cover_image_url) {
+        try {
+          board.cover_image_url = await generatePresignedUrl(
+            board.cover_image_url,
+            NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+          );
+        } catch (err) {
+          console.error(`Failed to generate URL for board ${board._id}:`, err.message);
+        }
+      }
+      return board;
+    })
+  );
+};
+
+/**
+ * Attach presigned URLs to posts
+ */
+const attachPresignedUrlsToPosts = async (posts) => {
+  if (posts.length === NUMERIC_CONSTANTS.DEFAULT_VALUE) return posts;
+
+  return Promise.all(
+    posts.map(async (post) => {
+      try {
+        let keyToUse = post.media_url;
+        if (post.status === 'uploaded' || !post.media_url || post.media_url === 'processing') {
+          keyToUse = post.original_media_url;
+        }
+        if (keyToUse && keyToUse !== 'uploading' && keyToUse !== 'processing') {
+          post.media_url = await generatePresignedUrl(
+            keyToUse,
+            NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+          );
+        }
+      } catch (err) {
+        console.error(`Failed to generate URL for post ${post._id}:`, err.message);
+      }
+      return post;
+    })
+  );
+};
+
+/**
+ * Build aggregation stages for counting likes and comments on posts
+ */
+const buildPostCountStages = () => [
+  {
+    $lookup: {
+      from: 'likes',
+      let: { postId: '$_id' },
+      pipeline: [{ $match: { $expr: { $eq: ['$post_id', '$$postId'] } } }, { $count: 'count' }],
+      as: 'likesCount',
+    },
+  },
+  {
+    $lookup: {
+      from: 'comments',
+      let: { postId: '$_id' },
+      pipeline: [{ $match: { $expr: { $eq: ['$post_id', '$$postId'] } } }, { $count: 'count' }],
+      as: 'commentsCount',
+    },
+  },
+  {
+    $addFields: {
+      totalLikes: { $ifNull: [{ $arrayElemAt: ['$likesCount.count', 0] }, 0] },
+      totalComments: { $ifNull: [{ $arrayElemAt: ['$commentsCount.count', 0] }, 0] },
+    },
+  },
+  {
+    $project: {
+      likesCount: NUMERIC_CONSTANTS.DEFAULT_VALUE,
+      commentsCount: NUMERIC_CONSTANTS.DEFAULT_VALUE,
+    },
+  },
+];
+
+/**
+ * Build aggregation pipeline for board listing with pin counts
+ */
+const buildBoardsWithPinCountPipeline = (userId, skip, limit) => [
+  { $match: { user_id: new mongoose.Types.ObjectId(userId) } },
+  { $sort: { created_at: -1 } },
+  { $skip: skip },
+  { $limit: limit },
+  {
+    $lookup: {
+      from: 'boardposts',
+      localField: '_id',
+      foreignField: 'board_id',
+      as: 'pins',
+    },
+  },
+  {
+    $addFields: {
+      totalPins: { $size: '$pins' },
+    },
+  },
+  {
+    $project: {
+      pins: NUMERIC_CONSTANTS.DEFAULT_VALUE,
+      created_at: NUMERIC_CONSTANTS.DEFAULT_VALUE,
+      updated_at: NUMERIC_CONSTANTS.DEFAULT_VALUE,
+      __v: NUMERIC_CONSTANTS.DEFAULT_VALUE,
+    },
+  },
+];
+
+/**
+ * Build aggregation pipeline for board pins with post details
+ */
+const buildBoardPinsPipeline = (boardId, skip, limit) => [
+  { $match: { board_id: new mongoose.Types.ObjectId(boardId) } },
+  { $sort: { created_at: -1 } },
+  { $skip: skip },
+  { $limit: limit },
+  {
+    $lookup: {
+      from: 'posts',
+      localField: 'post_id',
+      foreignField: '_id',
+      as: 'post',
+    },
+  },
+  { $unwind: { path: '$post', preserveNullAndEmptyArrays: false } },
+  {
+    $replaceRoot: { newRoot: '$post' },
+  },
+  {
+    $lookup: {
+      from: 'users',
+      localField: 'user_id',
+      foreignField: '_id',
+      as: 'user_id',
+      pipeline: [
+        {
+          $project: {
+            name: NUMERIC_CONSTANTS.DEFAULT_ONE,
+            profile_url: NUMERIC_CONSTANTS.DEFAULT_ONE,
+          },
+        },
+      ],
+    },
+  },
+  { $unwind: { path: '$user_id', preserveNullAndEmptyArrays: true } },
+  ...buildPostCountStages(),
+];
 
 /**
  * Create a new board
@@ -59,57 +216,30 @@ export const deleteBoardService = async (boardId) => {
     throw new NotFoundError(ERROR_MESSAGES.BOARD_NOT_FOUND);
   }
 
-  // Delete cover image from S3 if exists
-  if (board.cover_image_url) {
-    await deleteFromS3(board.cover_image_url);
-  }
-
-  // Delete board from database
-  await Board.findByIdAndDelete(boardId);
+  // Delete cover image from S3, board, and all associated pins in parallel
+  await Promise.all([
+    board.cover_image_url ? deleteFromS3(board.cover_image_url) : Promise.resolve(),
+    Board.findByIdAndDelete(boardId),
+    BoardPost.deleteMany({ board_id: boardId }),
+  ]);
 };
 
 /**
- * Get all boards for a user with pagination
+ * Get all boards for a user with pagination and pin counts
  * @param {string} userId - User ID
  * @param {number} page - Page number
  * @param {number} limit - Items per page
  * @returns {Promise<Object>} - Boards with pagination metadata
  */
-export const getBoardsService = async (
-  userId,
-  page = NUMERIC_CONSTANTS.PAGINATION_DEFAULT_PAGE,
-  limit = NUMERIC_CONSTANTS.PAGINATION_DEFAULT_LIMIT
-) => {
-  const skip = (page - NUMERIC_CONSTANTS.PAGINATION_DEFAULT_PAGE) * limit;
+export const getBoardsService = async (userId, page = 1, limit = 20) => {
+  const skip = (page - NUMERIC_CONSTANTS.DEFAULT_ONE) * limit;
 
   const [boards, total] = await Promise.all([
-    Board.find({ user_id: userId })
-      .select('-created_at -updated_at -__v')
-      .sort({ created_at: -1 })
-      .skip(skip)
-      .limit(limit),
+    Board.aggregate(buildBoardsWithPinCountPipeline(userId, skip, limit)),
     Board.countDocuments({ user_id: userId }),
   ]);
 
-  // Generate presigned URLs for cover images
-  const boardsWithUrls = await Promise.all(
-    boards.map(async (board) => {
-      const boardObj = board.toObject();
-
-      if (board.cover_image_url) {
-        try {
-          boardObj.cover_image_url = await generatePresignedUrl(
-            board.cover_image_url,
-            NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
-          );
-        } catch (err) {
-          console.error(`Failed to generate URL for board ${board._id}:`, err.message);
-        }
-      }
-
-      return boardObj;
-    })
-  );
+  const boardsWithUrls = await attachPresignedUrlsToBoards(boards);
 
   return {
     boards: boardsWithUrls,
@@ -118,6 +248,73 @@ export const getBoardsService = async (
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+    },
+  };
+};
+
+/**
+ * Get board by ID with details
+ * @param {string} boardId - Board ID
+ * @returns {Promise<Object>} - Board details with presigned URL
+ */
+export const getBoardByIdService = async (boardId) => {
+  const board = await Board.findById(boardId);
+
+  if (!board) {
+    throw new NotFoundError(ERROR_MESSAGES.BOARD_NOT_FOUND);
+  }
+
+  const boardObj = board.toObject();
+
+  // Get total pins count
+  boardObj.totalPins = await BoardPost.countDocuments({ board_id: boardId });
+
+  // Generate presigned URL for cover image
+  if (board.cover_image_url) {
+    boardObj.cover_image_url = await generatePresignedUrl(
+      board.cover_image_url,
+      NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+    );
+  }
+
+  // Remove timestamps
+  delete boardObj.created_at;
+  delete boardObj.updated_at;
+  delete boardObj.__v;
+
+  return boardObj;
+};
+
+/**
+ * Get pins in a board with pagination
+ * @param {string} boardId - Board ID
+ * @param {number} page - Page number
+ * @param {number} limit - Items per page
+ * @returns {Promise<Object>} - Pins with pagination metadata
+ */
+export const getBoardPinsService = async (boardId, page = 1, limit = 20) => {
+  const skip = (page - NUMERIC_CONSTANTS.DEFAULT_ONE) * limit;
+
+  // Check if board exists
+  const board = await Board.findById(boardId);
+  if (!board) {
+    throw new NotFoundError(ERROR_MESSAGES.BOARD_NOT_FOUND);
+  }
+
+  const [pins, total] = await Promise.all([
+    BoardPost.aggregate(buildBoardPinsPipeline(boardId, skip, limit)),
+    BoardPost.countDocuments({ board_id: boardId }),
+  ]);
+
+  const pinsWithUrls = await attachPresignedUrlsToPosts(pins);
+
+  return {
+    pins: pinsWithUrls,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages: Number(Math.ceil(total / limit)),
     },
   };
 };
@@ -150,10 +347,7 @@ export const updateBoardService = async (boardId, updateData, file) => {
 
   // Handle cover image update
   if (file) {
-    // Delete old cover image from S3 if exists
-    if (board.cover_image_url) {
-      await deleteFromS3(board.cover_image_url);
-    }
+    const oldCoverUrl = board.cover_image_url;
 
     // Upload new cover image
     const newCoverImageUrl = await uploadBoardCoverImage(
@@ -164,6 +358,13 @@ export const updateBoardService = async (boardId, updateData, file) => {
     );
 
     board.cover_image_url = newCoverImageUrl;
+
+    // Delete old cover image from S3 if exists (after successful upload)
+    if (oldCoverUrl) {
+      deleteFromS3(oldCoverUrl).catch((err) =>
+        console.error('Failed to delete old cover image:', err)
+      );
+    }
   }
 
   // Save updated board
@@ -194,30 +395,28 @@ export const updateBoardService = async (boardId, updateData, file) => {
  * @returns {Promise<Object>} - Created board post entry
  */
 export const savePinToBoardService = async (userId, boardId, postId) => {
-  const user = await User.findById(userId);
-  if (!user) {
-    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
-  }
+  // Check board and post existence in parallel
+  const [board, post, existingEntry] = await Promise.all([
+    Board.findById(boardId),
+    Post.findById(postId),
+    BoardPost.findOne({ board_id: boardId, post_id: postId }),
+  ]);
 
-  const board = await Board.findById(boardId);
   if (!board) {
     throw new NotFoundError(ERROR_MESSAGES.BOARD_NOT_FOUND);
   }
 
-  // Check if post exists
-  const post = await Post.findById(postId);
   if (!post) {
     throw new NotFoundError(ERROR_MESSAGES.POST_NOT_FOUND);
   }
 
-  // Check if pin is already saved to this board
-  const existingEntry = await BoardPost.findOne({ board_id: boardId, post_id: postId });
   if (existingEntry) {
-    throw new ValidationError(ERROR_MESSAGES.PIN_ALREADY_SAVED);
+    throw new Error(ERROR_MESSAGES.PIN_ALREADY_SAVED);
   }
 
   // Create board post entry
   const boardPost = await BoardPost.create({
+    user_id: userId,
     board_id: boardId,
     post_id: postId,
   });
@@ -240,16 +439,13 @@ export const removePinFromBoardService = async (boardId, postId, userId) => {
   }
 
   if (board.user_id.toString() !== userId.toString()) {
-    throw new AuthorizationError(ERROR_MESSAGES.NOT_AUTHORIZED_USER_TO_REMOVE_PIN);
+    throw new Error(ERROR_MESSAGES.UNAUTHORIZED_TO_REMOVE_PIN);
   }
 
-  // Check if the pin exists in the board
-  const existingEntry = await BoardPost.findOne({ board_id: boardId, post_id: postId });
+  // Find and delete in one operation
+  const result = await BoardPost.findOneAndDelete({ board_id: boardId, post_id: postId });
 
-  if (!existingEntry) {
+  if (!result) {
     throw new NotFoundError(ERROR_MESSAGES.PIN_NOT_FOUND_IN_BOARD);
   }
-
-  // Delete the board post entry
-  await BoardPost.findByIdAndDelete(existingEntry._id);
 };

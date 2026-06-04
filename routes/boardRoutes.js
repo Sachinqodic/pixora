@@ -8,6 +8,8 @@ import { validatePagination } from '../validations/commonValidation.js';
 import {
   createBoard,
   getBoards,
+  getBoardById,
+  getBoardPins,
   updateBoard,
   deleteBoard,
   savePinToBoard,
@@ -32,6 +34,16 @@ router.post(
  * Get all boards for authenticated user
  */
 router.get('/list', authChecker, validatePagination, getBoards);
+
+/**
+ * Get board by ID
+ */
+router.get('/:id', authChecker, getBoardById);
+
+/**
+ * Get pins in a board with pagination
+ */
+router.get('/:id/pins', authChecker, validatePagination, getBoardPins);
 
 /**
  * Update a board by ID

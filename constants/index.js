@@ -215,6 +215,10 @@ export const ERROR_MESSAGES = {
   PIN_ALREADY_SAVED: 'Pin is already saved to this board',
   NOT_AUTHORIZED_USER_TO_REMOVE_PIN: 'You are not authorized to remove pins from this board',
   PIN_NOT_FOUND_IN_BOARD: 'Pin not found in this board',
+
+  // Follower Errors
+  FOLLOW_SELF_FORBIDDEN: 'You cannot follow yourself',
+  FOLLOW_RELATIONSHIP_NOT_FOUND: 'Follow relationship not found',
 };
 
 Object.freeze(ERROR_MESSAGES);
@@ -243,7 +247,9 @@ export const MESSAGES = {
   BOARD_CREATED: 'Board created successfully',
   BOARD_UPDATED: 'Board updated successfully',
   BOARD_DELETED: 'Board deleted successfully',
+  BOARD_FETCHED: 'Board fetched successfully',
   BOARDS_FETCHED: 'Boards fetched successfully',
+  BOARD_PINS_FETCHED: 'Board pins fetched successfully',
   PIN_SAVED_TO_BOARD: 'Pin saved to board successfully',
   PIN_REMOVED_FROM_BOARD: 'Pin removed from board successfully',
 };

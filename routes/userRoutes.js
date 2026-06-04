@@ -26,7 +26,7 @@ router.get('/profile', authChecker, getProfile);
  * Get all users
  */
 router.get(
-  '/',
+  '/all',
   // publicRateLimiter, // Apply public rate limiter (10 requests/minute)
   protectedRoute,
   getAllUsers

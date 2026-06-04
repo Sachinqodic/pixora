@@ -196,36 +196,8 @@ export const getUserProfile = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { getUserByIdService } = await import('../services/userService.js');
-    const user = await getUserByIdService(id);
 
-    if (!user) {
-      return res.status(HTTP_STATUS.NOT_FOUND).json({
-        success: false,
-        error: {
-          message: 'User not found',
-          code: ERROR_CODES.NOT_FOUND,
-          statusCode: HTTP_STATUS.NOT_FOUND,
-        },
-      });
-    }
-
-    const publicProfile = user.getPublicProfile();
-
-    // Fetch followers and following counts
-    const [followersCount, followingCount] = await Promise.all([
-      Follower.countDocuments({ following_id: user._id }),
-      Follower.countDocuments({ follower_id: user._id }),
-    ]);
-
-    publicProfile.followers_count = followersCount;
-    publicProfile.following_count = followingCount;
-
-    // Generate presigned URL for the profile image if it exists
-    if (publicProfile.profile_url) {
-      const { generatePresignedUrl } = await import('../services/s3Service.js');
-      const presignedUrl = await generatePresignedUrl(publicProfile.profile_url, 7200); // 2 hours
-      publicProfile.profile_url = presignedUrl;
-    }
+    const publicProfile = await getUserByIdService(id);
 
     return baseController.sendSuccess(
       res,
