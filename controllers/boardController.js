@@ -5,6 +5,7 @@ import {
   getBoardsService,
   updateBoardService,
   savePinToBoardService,
+  removePinFromBoardService,
 } from '../services/boardService.js';
 import {
   HTTP_STATUS,
@@ -101,6 +102,7 @@ export const updateBoard = async (req, res, next) => {
 export const savePinToBoard = async (req, res, next) => {
   try {
     const user_id = req.user._id;
+    console.log('user_id123', user_id);
     const { board_id, post_id } = req.body;
 
     const boardPost = await savePinToBoardService(user_id, board_id, post_id);
@@ -111,6 +113,25 @@ export const savePinToBoard = async (req, res, next) => {
       MESSAGES.PIN_SAVED_TO_BOARD,
       HTTP_STATUS.CREATED
     );
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Remove a pin from a board
+ * @param {Object} req - Request object
+ * @param {Object} res - Response object
+ * @param {Function} next - Next middleware
+ */
+export const removePinFromBoard = async (req, res, next) => {
+  try {
+    const { board_id, post_id } = req.body;
+    const user_id = req.user._id;
+
+    await removePinFromBoardService(board_id, post_id, user_id);
+
+    return baseController.sendSuccess(res, null, MESSAGES.PIN_REMOVED_FROM_BOARD, HTTP_STATUS.OK);
   } catch (error) {
     next(error);
   }

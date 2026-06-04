@@ -1,7 +1,9 @@
 import Board from '../models/Board.js';
-import { NotFoundError } from '../utils/errors.js';
-import { ERROR_MESSAGES, NUMERIC_CONSTANTS } from '../constants/index.js';
+import BoardPost from '../models/BoardPost.js';
+import Post from '../models/Post.js';
 import { uploadBoardCoverImage, generatePresignedUrl, deleteFromS3 } from './s3Service.js';
+import { NotFoundError, AuthorizationError, ValidationError } from '../utils/errors.js';
+import { ERROR_MESSAGES, NUMERIC_CONSTANTS } from '../constants/index.js';
 
 /**
  * Create a new board
@@ -192,10 +194,11 @@ export const updateBoardService = async (boardId, updateData, file) => {
  * @returns {Promise<Object>} - Created board post entry
  */
 export const savePinToBoardService = async (userId, boardId, postId) => {
-  const BoardPost = (await import('../models/BoardPost.js')).default;
-  const Post = (await import('../models/Post.js')).default;
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
+  }
 
-  // Check if board exists
   const board = await Board.findById(boardId);
   if (!board) {
     throw new NotFoundError(ERROR_MESSAGES.BOARD_NOT_FOUND);
@@ -208,21 +211,45 @@ export const savePinToBoardService = async (userId, boardId, postId) => {
   }
 
   // Check if pin is already saved to this board
-  const existingEntry = await BoardPost.findOne({
-    user_id: userId,
-    board_id: boardId,
-    post_id: postId,
-  });
+  const existingEntry = await BoardPost.findOne({ board_id: boardId, post_id: postId });
   if (existingEntry) {
-    throw new Error(ERROR_MESSAGES.PIN_ALREADY_SAVED);
+    throw new ValidationError(ERROR_MESSAGES.PIN_ALREADY_SAVED);
   }
 
   // Create board post entry
   const boardPost = await BoardPost.create({
-    user_id: userId,
     board_id: boardId,
     post_id: postId,
   });
 
   return boardPost;
+};
+
+/**
+ * Remove a pin from a board
+ * @param {string} boardId - Board ID
+ * @param {string} postId - Post ID
+ * @param {string} userId - User ID (board owner)
+ * @returns {Promise<void>}
+ */
+export const removePinFromBoardService = async (boardId, postId, userId) => {
+  // Check if board exists and user is the owner
+  const board = await Board.findById(boardId);
+  if (!board) {
+    throw new NotFoundError(ERROR_MESSAGES.BOARD_NOT_FOUND);
+  }
+
+  if (board.user_id.toString() !== userId.toString()) {
+    throw new AuthorizationError(ERROR_MESSAGES.NOT_AUTHORIZED_USER_TO_REMOVE_PIN);
+  }
+
+  // Check if the pin exists in the board
+  const existingEntry = await BoardPost.findOne({ board_id: boardId, post_id: postId });
+
+  if (!existingEntry) {
+    throw new NotFoundError(ERROR_MESSAGES.PIN_NOT_FOUND_IN_BOARD);
+  }
+
+  // Delete the board post entry
+  await BoardPost.findByIdAndDelete(existingEntry._id);
 };

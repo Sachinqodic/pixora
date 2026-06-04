@@ -213,6 +213,8 @@ export const ERROR_MESSAGES = {
   // Board Errors
   BOARD_NOT_FOUND: 'Board not found',
   PIN_ALREADY_SAVED: 'Pin is already saved to this board',
+  NOT_AUTHORIZED_USER_TO_REMOVE_PIN: 'You are not authorized to remove pins from this board',
+  PIN_NOT_FOUND_IN_BOARD: 'Pin not found in this board',
 };
 
 Object.freeze(ERROR_MESSAGES);
@@ -243,6 +245,7 @@ export const MESSAGES = {
   BOARD_DELETED: 'Board deleted successfully',
   BOARDS_FETCHED: 'Boards fetched successfully',
   PIN_SAVED_TO_BOARD: 'Pin saved to board successfully',
+  PIN_REMOVED_FROM_BOARD: 'Pin removed from board successfully',
 };
 
 Object.freeze(MESSAGES);

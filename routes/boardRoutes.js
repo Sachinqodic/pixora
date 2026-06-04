@@ -11,6 +11,7 @@ import {
   updateBoard,
   deleteBoard,
   savePinToBoard,
+  removePinFromBoard,
 } from '../controllers/boardController.js';
 
 const router = express.Router();
@@ -41,6 +42,11 @@ router.put('/:id', authChecker, upload.single('coverImage'), handleMulterError, 
  * Save a pin to a board
  */
 router.post('/save-pin', authChecker, validateSavePinToBoard, savePinToBoard);
+
+/**
+ * Remove a pin from a board
+ */
+router.post('/remove-pin', authChecker, validateSavePinToBoard, removePinFromBoard);
 
 /**
  * Delete a board by ID
