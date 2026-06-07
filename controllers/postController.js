@@ -12,7 +12,7 @@ import { HTTP_STATUS, MESSAGES, ERROR_CODES, ERROR_MESSAGES } from '../constants
 import { baseController } from './baseController.js';
 
 /**
- * Get all posts
+ * Get all posts with smart personalized feed
  * @route GET /api/posts
  */
 export const getAllPosts = async (req, res, next) => {
@@ -20,7 +20,10 @@ export const getAllPosts = async (req, res, next) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
 
-    const posts = await getAllPostsService(page, limit, null);
+    // Pass userId for personalized feed (if authenticated)
+    const userId = req.user?._id || null;
+
+    const posts = await getAllPostsService(page, limit, userId);
 
     return baseController.sendSuccess(res, { posts }, MESSAGES.POST_FETCHED, HTTP_STATUS.OK);
   } catch (error) {

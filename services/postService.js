@@ -15,6 +15,7 @@ import { processAiSuggestionInBackground } from './aiService.js';
 import { optimizeMedia } from '../utils/optimization.js';
 import { NUMERIC_CONSTANTS, ERROR_MESSAGES } from '../constants/index.js';
 import { NotFoundError } from '../utils/errors.js';
+import { getUserInterestsFromCache, getFollowingIdsFromCache } from '../utils/feedCache.js';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
@@ -130,7 +131,7 @@ const buildFollowingPostsPipeline = (userId, skip, limit) => [
       pipeline: [{ $project: { name: 1, profile_url: 1 } }],
     },
   },
-  { $unwind: { path: '$user_id', preserveNullAndEmpty: true } },
+  { $unwind: { path: '$user_id', preserveNullAndEmptyArrays: true } },
   ...buildCountStages(),
   { $project: { followCheck: 0 } },
 ];
@@ -152,9 +153,92 @@ const buildUserPostsPipeline = (userId, skip, limit) => [
       pipeline: [{ $project: { name: 1, profile_url: 1 } }],
     },
   },
-  { $unwind: { path: '$user_id', preserveNullAndEmpty: true } },
+  { $unwind: { path: '$user_id', preserveNullAndEmptyArrays: true } },
   ...buildCountStages(),
 ];
+
+/**
+ * Build smart feed aggregation pipeline with priority scoring
+ * Orders posts by: 1) Interests, 2) Following, 3) High engagement, 4) Recent
+ */
+const buildSmartFeedPipeline = (userInterests, followingIds, skip, limit) => {
+  return [
+    {
+      $match: {
+        status: { $ne: 'failed' },
+      },
+    },
+    {
+      $addFields: {
+        priorityScore: {
+          $sum: [
+            // Tier 1: Interest match (highest priority - 1000 points)
+            {
+              $cond: [
+                { $in: ['$category', userInterests.length > 0 ? userInterests : []] },
+                1000,
+                0,
+              ],
+            },
+            // Tier 2: Following users (500 points)
+            {
+              $cond: [{ $in: ['$user_id', followingIds.length > 0 ? followingIds : []] }, 500, 0],
+            },
+            // Tier 3: High engagement (100 points for 50+ likes)
+            {
+              $cond: [
+                {
+                  $gte: [{ $ifNull: ['$totalLikes', 0] }, 50],
+                },
+                100,
+                0,
+              ],
+            },
+            // Tier 4: Recent posts with some engagement (50 points)
+            {
+              $cond: [
+                {
+                  $and: [
+                    {
+                      $gte: [
+                        '$created_at',
+                        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
+                      ],
+                    },
+                    {
+                      $gte: [{ $ifNull: ['$totalLikes', 0] }, 10],
+                    },
+                  ],
+                },
+                50,
+                0,
+              ],
+            },
+            // Recency bonus for tie-breaking (small value)
+            {
+              $divide: [{ $subtract: ['$created_at', new Date(0)] }, 10000000000],
+            },
+          ],
+        },
+      },
+    },
+    { $sort: { priorityScore: -1, created_at: -1 } },
+    { $skip: skip },
+    { $limit: limit },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'user_id',
+        foreignField: '_id',
+        as: 'user_id',
+        pipeline: [{ $project: { name: 1, profile_url: 1 } }],
+      },
+    },
+    { $unwind: { path: '$user_id', preserveNullAndEmptyArrays: true } },
+    ...buildCountStages(),
+    { $project: { priorityScore: 0 } }, // Remove score from response
+  ];
+};
 
 /**
  * Background upload and processing
@@ -307,66 +391,50 @@ export const getPostById = async (postId) => {
 };
 
 /**
- * Get all posts with presigned URLs
- * @param {Object} query - Query parameters (page, limit)
+ * Get all posts with smart personalized feed
+ * @param {number} page - Page number
+ * @param {number} limit - Posts per page
+ * @param {string|null} userId - User ID for personalization (if logged in)
  * @returns {Promise<Array>} - List of posts
  */
-export const getAllPostsService = async (page = 1, limit = 20, excludeUserId = null) => {
+export const getAllPostsService = async (page = 1, limit = 20, userId = null) => {
   const skip = (page - 1) * limit;
 
-  const query = { status: { $ne: 'failed' } };
-  if (excludeUserId) {
-    query.user_id = { $ne: excludeUserId };
+  let posts;
+
+  // If userId provided, build smart personalized feed
+  if (userId) {
+    // Get user interests & following from cache (fast)
+    const [interests, followingIds] = await Promise.all([
+      getUserInterestsFromCache(userId.toString()),
+      getFollowingIdsFromCache(userId.toString()),
+    ]);
+
+    // Use smart feed pipeline with priority scoring
+    posts = await Post.aggregate(buildSmartFeedPipeline(interests, followingIds, skip, limit));
+  } else {
+    // No userId = public/guest feed (not personalized)
+    posts = await Post.aggregate([
+      { $match: { status: { $ne: 'failed' } } },
+      { $sort: { created_at: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'user_id',
+          foreignField: '_id',
+          as: 'user_id',
+          pipeline: [{ $project: { name: 1, profile_url: 1 } }],
+        },
+      },
+      { $unwind: { path: '$user_id', preserveNullAndEmptyArrays: true } },
+      ...buildCountStages(),
+    ]);
   }
 
-  // Fetch posts from database, sorted by latest
-  const posts = await Post.find(query)
-    .sort({ created_at: -1 })
-    .skip(skip)
-    .limit(limit)
-    .populate('user_id', 'name avatar');
-
-  const { generatePresignedUrl } = await import('./s3Service.js');
-
-  // Generate presigned URLs for each post
-  const postsWithUrls = await Promise.all(
-    posts.map(async (post) => {
-      const postObj = post.toObject();
-
-      try {
-        // Determine which URL to generate (fallback to original if optimized is not ready)
-        let keyToUse = post.media_url;
-        if (post.status === 'uploaded' || !post.media_url || post.media_url === 'processing') {
-          keyToUse = post.original_media_url;
-        }
-
-        if (keyToUse && keyToUse !== 'uploading' && keyToUse !== 'processing') {
-          postObj.media_url = await generatePresignedUrl(
-            keyToUse,
-            NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
-          );
-        }
-
-        // Get counts (in a real app, you might want to cache these or include in schema)
-        const [likes, comments, authorFollowers] = await Promise.all([
-          Like.countDocuments({ post_id: post._id }),
-          Comments.countDocuments({ post_id: post._id }),
-          Follower.countDocuments({ following_id: post.user_id?._id }),
-        ]);
-
-        postObj.totalLikes = likes;
-        postObj.totalComments = comments;
-        postObj.authorFollowers = authorFollowers;
-
-        return postObj;
-      } catch (err) {
-        console.error(`Failed to generate URL for post ${post._id}:`, err.message);
-        return postObj;
-      }
-    })
-  );
-
-  return postsWithUrls;
+  // Attach presigned URLs to all posts
+  return attachPresignedUrls(posts);
 };
 
 /**

@@ -4,6 +4,7 @@ import Follower from '../models/Follower.js';
 import mongoose from 'mongoose';
 import { ERROR_MESSAGES } from '../constants/index.js';
 import { NotFoundError, ForbiddenError, InternalServerError } from '../utils/errors.js';
+import { invalidateUserInterestsCache, invalidateUserFollowingCache } from '../utils/feedCache.js';
 
 /**
  * Build aggregation pipeline for fetching followers with user details
@@ -113,6 +114,9 @@ export const addUserInterestService = async (userId, interests) => {
   if (newInterests.length > 0) {
     userInterest.interest.push(...newInterests);
     await userInterest.save(); // Single save instead of multiple
+
+    // Invalidate cache so next feed request gets fresh data
+    await invalidateUserInterestsCache(userId.toString());
   }
 
   return userInterest;
@@ -228,6 +232,10 @@ export const followUserService = async (followerId, followingId) => {
   });
 
   await follow.save();
+
+  // Invalidate cache so next feed request gets fresh data
+  await invalidateUserFollowingCache(followerId.toString());
+
   return follow;
 };
 
@@ -246,6 +254,9 @@ export const unfollowUserService = async (followerId, followingId) => {
   if (!result) {
     throw new NotFoundError(ERROR_MESSAGES.FOLLOW_RELATIONSHIP_NOT_FOUND);
   }
+
+  // Invalidate cache so next feed request gets fresh data
+  await invalidateUserFollowingCache(followerId.toString());
 
   return { message: 'Successfully unfollowed user' };
 };
