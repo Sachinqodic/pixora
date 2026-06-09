@@ -39,6 +39,13 @@ const postSchema = new mongoose.Schema(
       trim: true,
     },
 
+    file_size: {
+      type: Number,
+      default: 0,
+      required: true,
+      index: true, // Index for aggregation queries
+    },
+
     status: {
       type: String,
       enum: ['processing', 'uploaded', 'ready', 'failed'],

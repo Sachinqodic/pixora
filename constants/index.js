@@ -265,20 +265,20 @@ export const SIZES = ['Bytes', 'KB', 'MB', 'GB'];
 // Storage Quota Limits by Plan Type and Billing Period (in bytes)
 export const PLAN_STORAGE_LIMITS = {
   free: {
-    monthly: 5 * 1024 * 1024, // 5 MB
-    yearly: 5 * 1024 * 1024, // 5 MB
+    monthly: 150 * 1024 * 1024, // 150 MB
+    yearly: 150 * 1024 * 1024, // 150 MB
   },
   starter: {
-    monthly: 10 * 1024 * 1024, // 10 MB
-    yearly: 25 * 1024 * 1024, // 25 MB
+    monthly: 300 * 1024 * 1024, // 300 MB
+    yearly: 500 * 1024 * 1024, // 500 MB
   },
   pro: {
-    monthly: 15 * 1024 * 1024, // 15 MB
-    yearly: 30 * 1024 * 1024, // 30 MB
+    monthly: 600 * 1024 * 1024, // 600 MB
+    yearly: 800 * 1024 * 1024, // 800 MB
   },
   enterprise: {
-    monthly: 20 * 1024 * 1024, // 20 MB
-    yearly: 40 * 1024 * 1024, // 40 MB
+    monthly: 900 * 1024 * 1024, // 900 MB
+    yearly: 1024 * 1024 * 1024, // 1 GB
   },
 };
 
