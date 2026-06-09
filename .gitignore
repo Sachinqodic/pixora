@@ -113,3 +113,11 @@ public
 
 # Diagnostic reports
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Docker
+docker-compose.override.yml
+.dockerignore.bak
+
+# Docker volumes (if accidentally created locally)
+redis_data/
+redis_data_dev/
