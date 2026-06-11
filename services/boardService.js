@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import { uploadBoardCoverImage, generatePresignedUrl, deleteFromS3 } from './s3Service.js';
 import { NotFoundError } from '../utils/errors.js';
 import { ERROR_MESSAGES, NUMERIC_CONSTANTS } from '../constants/index.js';
+import { addLikedByUserFlag } from '../helpers/likeHelper.js';
 
 /**
  * Attach presigned URLs to boards
@@ -292,7 +293,7 @@ export const getBoardByIdService = async (boardId) => {
  * @param {number} limit - Items per page
  * @returns {Promise<Object>} - Pins with pagination metadata
  */
-export const getBoardPinsService = async (boardId, page = 1, limit = 20) => {
+export const getBoardPinsService = async (boardId, page = 1, limit = 20, currentUserId = null) => {
   const skip = (page - NUMERIC_CONSTANTS.DEFAULT_ONE) * limit;
 
   // Check if board exists
@@ -307,9 +308,10 @@ export const getBoardPinsService = async (boardId, page = 1, limit = 20) => {
   ]);
 
   const pinsWithUrls = await attachPresignedUrlsToPosts(pins);
+  const pinsWithLikedFlag = await addLikedByUserFlag(pinsWithUrls, currentUserId);
 
   return {
-    pins: pinsWithUrls,
+    pins: pinsWithLikedFlag,
     pagination: {
       total,
       page,

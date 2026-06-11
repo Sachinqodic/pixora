@@ -16,6 +16,7 @@ import { optimizeMedia } from '../utils/optimization.js';
 import { NUMERIC_CONSTANTS, ERROR_MESSAGES } from '../constants/index.js';
 import { NotFoundError } from '../utils/errors.js';
 import { getUserInterestsFromCache, getFollowingIdsFromCache } from '../utils/feedCache.js';
+import { addLikedByUserFlag } from '../helpers/likeHelper.js';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
@@ -348,19 +349,23 @@ export const createPostService = async (postData, file) => {
 /**
  * Get a post by ID
  * @param {string} postId - The ID of the post to fetch
+ * @param {string|null} currentUserId - The ID of the current logged-in user (for liked flag)
  * @returns {Promise<Object>} - The fetched post
  * TODO:Need to include the likes,and comments, and views count in the response.
  */
-export const getPostById = async (postId) => {
+export const getPostById = async (postId, currentUserId = null) => {
   const post = await Post.findById(postId).populate('user_id', 'name avatar');
   if (!post) {
     throw new NotFoundError(ERROR_MESSAGES.POST_NOT_FOUND);
   }
 
-  // Get likes count and comments count in parallel
-  const [totalLikes, totalComments] = await Promise.all([
+  // Get likes count, comments count, and user's like status in parallel
+  const [totalLikes, totalComments, userLike] = await Promise.all([
     Like.countDocuments({ post_id: postId }),
     Comments.countDocuments({ post_id: postId }),
+    currentUserId
+      ? Like.findOne({ post_id: postId, user_id: currentUserId })
+      : Promise.resolve(null),
   ]);
 
   const postObj = post.toObject();
@@ -386,6 +391,7 @@ export const getPostById = async (postId) => {
 
   postObj.totalLikes = totalLikes;
   postObj.totalComments = totalComments;
+  postObj.isLikedByCurrentUser = !!userLike;
 
   return postObj;
 };
@@ -433,8 +439,9 @@ export const getAllPostsService = async (page = 1, limit = 20, userId = null) =>
     ]);
   }
 
-  // Attach presigned URLs to all posts
-  return attachPresignedUrls(posts);
+  // Attach presigned URLs and liked flag
+  const postsWithUrls = await attachPresignedUrls(posts);
+  return addLikedByUserFlag(postsWithUrls, userId);
 };
 
 /**
@@ -526,7 +533,8 @@ export const getFollowingPostsService = async (userId, page = 1, limit = 20) => 
   const skip = (page - 1) * limit;
   const posts = await Post.aggregate(buildFollowingPostsPipeline(userId, skip, limit));
 
-  return attachPresignedUrls(posts);
+  const postsWithUrls = await attachPresignedUrls(posts);
+  return addLikedByUserFlag(postsWithUrls, userId);
 };
 
 /**
@@ -535,11 +543,13 @@ export const getFollowingPostsService = async (userId, page = 1, limit = 20) => 
  * @param {string} userId - The ID of the user whose posts to fetch
  * @param {number} [page=1] - Page number
  * @param {number} [limit=20] - Items per page
+ * @param {string|null} currentUserId - The ID of the current logged-in user (for liked flag)
  * @returns {Promise<Array>} - List of posts
  */
-export const getUserPostsService = async (userId, page = 1, limit = 20) => {
+export const getUserPostsService = async (userId, page = 1, limit = 20, currentUserId = null) => {
   const skip = (page - 1) * limit;
   const posts = await Post.aggregate(buildUserPostsPipeline(userId, skip, limit));
 
-  return attachPresignedUrls(posts);
+  const postsWithUrls = await attachPresignedUrls(posts);
+  return addLikedByUserFlag(postsWithUrls, currentUserId);
 };

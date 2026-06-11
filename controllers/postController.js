@@ -76,8 +76,11 @@ export const getPost = async (req, res, next) => {
     // Get post ID from URL params
     const { id } = req.params;
 
+    // Get current user ID for liked flag (optional)
+    const currentUserId = req.user?._id || null;
+
     // Get post with presigned URLs
-    const post = await getPostById(id);
+    const post = await getPostById(id, currentUserId);
 
     // Return success response
     return baseController.sendSuccess(res, { post }, MESSAGES.POST_FETCHED, HTTP_STATUS.OK);
@@ -204,7 +207,10 @@ export const getUserPosts = async (req, res, next) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
 
-    const posts = await getUserPostsService(userId, page, limit);
+    // Get current user ID for liked flag (optional)
+    const currentUserId = req.user?._id || null;
+
+    const posts = await getUserPostsService(userId, page, limit, currentUserId);
 
     return baseController.sendSuccess(res, { posts }, MESSAGES.POST_FETCHED, HTTP_STATUS.OK);
   } catch (error) {

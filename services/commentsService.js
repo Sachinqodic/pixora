@@ -49,7 +49,7 @@ const buildCommentsPipeline = (postId, skip, limit) => [
       localField: 'user_id',
       foreignField: '_id',
       as: 'user_id',
-      pipeline: [{ $project: { name: 1, email: 1 } }],
+      pipeline: [{ $project: { name: 1, email: 1, profile_url: 1 } }],
     },
   },
   { $unwind: { path: '$user_id', preserveNullAndEmptyArrays: true } },
@@ -78,8 +78,37 @@ export const getCommentsByPostId = async (postId, page = 1, limit = 20) => {
     Comments.countDocuments({ post_id: postId }),
   ]);
 
+  // Generate presigned URLs for user profile images
+  const { generatePresignedUrl } = await import('./s3Service.js');
+
+  const commentsWithUrls = await Promise.all(
+    comments.map(async (comment) => {
+      let profileUrl = comment.user_id.profile_url;
+
+      if (profileUrl) {
+        console.log('Iam in the profile url generation block ', profileUrl);
+        try {
+          profileUrl = await generatePresignedUrl(
+            profileUrl,
+            NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+          );
+        } catch (err) {
+          console.error(`Failed to generate URL for user ${comment.user_id._id}:`, err.message);
+        }
+      }
+
+      return {
+        ...comment,
+        user_id: {
+          ...comment.user_id,
+          profile_url: profileUrl,
+        },
+      };
+    })
+  );
+
   // Format comments response
-  const formattedComments = comments.map((comment) => ({
+  const formattedComments = commentsWithUrls.map((comment) => ({
     id: comment._id,
     comment_text: comment.comments_text,
     is_edited: comment.is_edited,
@@ -87,6 +116,7 @@ export const getCommentsByPostId = async (postId, page = 1, limit = 20) => {
       id: comment.user_id._id,
       name: comment.user_id.name,
       email: comment.user_id.email,
+      profile_url: comment.user_id.profile_url,
     },
   }));
 

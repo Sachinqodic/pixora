@@ -168,7 +168,10 @@ export const getBoardPins = async (req, res, next) => {
     const page = parseInt(req.query.page) || NUMERIC_CONSTANTS.PAGINATION_DEFAULT_PAGE;
     const limit = parseInt(req.query.limit) || NUMERIC_CONSTANTS.PAGINATION_DEFAULT_LIMIT;
 
-    const result = await getBoardPinsService(id, page, limit);
+    // Get current user ID for liked flag (optional)
+    const currentUserId = req.user?._id || null;
+
+    const result = await getBoardPinsService(id, page, limit, currentUserId);
 
     return baseController.sendSuccess(res, result, MESSAGES.BOARD_PINS_FETCHED, HTTP_STATUS.OK);
   } catch (error) {
