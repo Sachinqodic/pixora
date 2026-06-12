@@ -264,11 +264,13 @@ const uploadAndProcess = async (file, postId, userId) => {
     // Generate optimized key
     const optimizedKey = getOptimizedKey(originalKey);
 
-    // Update post with S3 keys
+    // Update post with S3 keys and file size
+    const fileSize = file.buffer.length;
     await Post.findByIdAndUpdate(postId, {
       original_media_url: originalKey,
       media_url: optimizedKey,
       status: 'uploaded',
+      file_size: fileSize, // Store file size for quota management
     });
 
     console.log(`[${postId}] Upload completed, starting optimization`);
@@ -462,6 +464,32 @@ export const deletePostById = async (postId) => {
     deleteFromS3(post.media_url),
     Post.findByIdAndDelete(postId),
   ]);
+
+  // ========================================================================
+  // DECREMENT STORAGE QUOTA: Return storage space to user
+  // ========================================================================
+  try {
+    const { default: User } = await import('../models/User.js');
+
+    // Decrement storage_used by the file size
+    if (post.file_size && post.file_size > 0) {
+      await User.findByIdAndUpdate(
+        post.user_id,
+        { $inc: { storage_used: -post.file_size } }, // Negative value to decrement
+        { new: true }
+      );
+
+      // Invalidate Redis cache so next request fetches fresh quota
+      const { invalidateQuotaCache } = await import('../middlewares/quotaGuard.js');
+      await invalidateQuotaCache(post.user_id.toString());
+
+      console.log(`[${postId}] Storage quota decremented by ${post.file_size} bytes`);
+    }
+  } catch (quotaError) {
+    console.error(`[${postId}] Failed to update storage quota:`, quotaError.message);
+    // Don't fail the deletion if quota update fails - just log it
+  }
+  // ========================================================================
 };
 
 /**
