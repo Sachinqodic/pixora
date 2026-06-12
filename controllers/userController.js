@@ -35,16 +35,20 @@ export const getProfile = async (req, res, next) => {
 
     const publicProfile = user.getPublicProfile();
 
-    // Fetch followers and following counts
-    const [followersCount, followingCount, following] = await Promise.all([
+    // Fetch followers, following counts, and user interests
+    const { default: UserInterest } = await import('../models/UserInterest.js');
+
+    const [followersCount, followingCount, following, userInterests] = await Promise.all([
       Follower.countDocuments({ following_id: user._id }),
       Follower.countDocuments({ follower_id: user._id }),
       Follower.find({ follower_id: user._id }).select('following_id'),
+      UserInterest.findOne({ user_id: user._id }).select('interest'),
     ]);
 
     publicProfile.followers_count = followersCount;
     publicProfile.following_count = followingCount;
     publicProfile.following_ids = following.map((f) => f.following_id);
+    publicProfile.interests = userInterests ? userInterests.interest : [];
 
     // Generate presigned URL for the profile image if it exists
     if (publicProfile.profile_url) {
