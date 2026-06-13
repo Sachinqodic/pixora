@@ -12,18 +12,19 @@ import { HTTP_STATUS, MESSAGES, ERROR_CODES, ERROR_MESSAGES } from '../constants
 import { baseController } from './baseController.js';
 
 /**
- * Get all posts with smart personalized feed
+ * Get all posts with smart personalized feed and search functionality
  * @route GET /api/posts
  */
 export const getAllPosts = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
+    const searchTerm = req.query.search?.trim() || null;
 
     // Pass userId for personalized feed (if authenticated)
     const userId = req.user?._id || null;
 
-    const posts = await getAllPostsService(page, limit, userId);
+    const posts = await getAllPostsService(page, limit, userId, searchTerm);
 
     return baseController.sendSuccess(res, { posts }, MESSAGES.POST_FETCHED, HTTP_STATUS.OK);
   } catch (error) {

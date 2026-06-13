@@ -18,6 +18,7 @@ import {
   validateCreatePost,
   validateFileUpload,
   validatePostId,
+  validateSearchQuery,
 } from '../validations/postValidation.js';
 
 const router = express.Router();
@@ -55,9 +56,9 @@ const upload = multer({
 });
 
 /**
- * Get all posts
+ * Get all posts with search functionality
  */
-router.get('/', authChecker, getAllPosts);
+router.get('/', authChecker, validateSearchQuery, getAllPosts);
 
 /**
  * Create a new post with image/video upload

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   createBodyValidationMiddleware,
   createParamsValidationMiddleware,
+  createQueryValidationMiddleware,
 } from '../middlewares/validation.js';
 
 // Title validator
@@ -35,6 +36,21 @@ export const postIdParamSchema = z.object({
 });
 
 /**
+ * Search Query Schema
+ * Validates search parameters for getAllPosts
+ */
+export const searchQuerySchema = z.object({
+  search: z
+    .string()
+    .trim()
+    .min(1, 'Search term must be at least 1 character')
+    .max(100, 'Search term must not exceed 100 characters')
+    .optional(),
+  page: z.string().regex(/^\d+$/, 'Page must be a positive number').optional(),
+  limit: z.string().regex(/^\d+$/, 'Limit must be a positive number').optional(),
+});
+
+/**
  * Middleware to validate file upload
  * Checks if file exists in request // Todo Needs to be shifted.
  */
@@ -54,3 +70,4 @@ export const validateFileUpload = (req, res, next) => {
 
 export const validateCreatePost = createBodyValidationMiddleware(createPostSchema);
 export const validatePostId = createParamsValidationMiddleware(postIdParamSchema);
+export const validateSearchQuery = createQueryValidationMiddleware(searchQuerySchema);

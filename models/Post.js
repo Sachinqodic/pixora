@@ -71,4 +71,15 @@ postSchema.index({ user_id: 1 });
 // Index on created_at for sorting posts by date
 postSchema.index({ created_at: -1 });
 
+// Text indexes for search functionality (full-word matches)
+postSchema.index({ title: 'text', description: 'text', category: 'text' });
+
+// Individual field indexes for regex search (partial matches)
+postSchema.index({ title: 1 });
+postSchema.index({ description: 1 });
+postSchema.index({ category: 1 });
+
+// Compound indexes for optimized queries
+postSchema.index({ status: 1, created_at: -1 }); // For filtering and sorting
+
 export default mongoose.model('Post', postSchema);

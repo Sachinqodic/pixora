@@ -63,7 +63,7 @@ const optimizeVideoStream = async (originalKey, fileName) => {
         '-crf',
         '23',
         '-vf',
-        'scale=1280:720:force_original_aspect_ratio=decrease',
+        'scale=1280:720:force_original_aspect_ratio=decrease,pad=ceil(iw/2)*2:ceil(ih/2)*2', // Fix odd dimensions + scale
         '-c:a',
         'aac',
         '-b:a',

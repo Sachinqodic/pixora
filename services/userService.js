@@ -47,12 +47,13 @@ const buildFollowingPipeline = (userId) => [
 ];
 
 /**
- * Get all users with sorting and pagination
+ * Get all users with sorting, pagination, and search
  * @param {Object} query - Query parameters
  * @param {number} [query.page=1] - Page number
  * @param {number} [query.limit=10] - Items per page
  * @param {string} [query.sortBy='created_at'] - Field to sort by
  * @param {string} [query.sortOrder='desc'] - Sort order ('asc' or 'desc')
+ * @param {string} [query.search] - Search term for name or email
  * @returns {Promise<Object>} Object containing users and pagination metadata
  *
  * @throws {Error} If user retrieval fails
@@ -63,21 +64,52 @@ export const getAllUsersService = async (query = {}) => {
   const limit = parseInt(query.limit) || 10;
   const sortBy = query.sortBy || 'created_at';
   const sortOrder = query.sortOrder === 'asc' ? 1 : -1;
+  const searchTerm = query.search;
 
   const skip = (page - 1) * limit;
 
+  // Build search filter
+  const filter = {};
+  if (searchTerm) {
+    filter.$or = [
+      { name: { $regex: searchTerm, $options: 'i' } }, // Case-insensitive search
+      { email: { $regex: searchTerm, $options: 'i' } },
+    ];
+  }
+
   const [users, total] = await Promise.all([
-    User.find()
+    User.find(filter)
       .select('name email profile_url bio plan_type created_at updated_at is_active role')
       .sort({ [sortBy]: sortOrder })
       .skip(skip)
       .limit(limit)
       .lean(), // Convert to plain JS objects for better performance
-    User.countDocuments(),
+    User.countDocuments(filter),
   ]);
 
+  // Generate presigned URLs for profile pictures
+  const { generatePresignedUrl } = await import('../services/s3Service.js');
+  const { NUMERIC_CONSTANTS } = await import('../constants/index.js');
+
+  const usersWithPresignedUrls = await Promise.all(
+    users.map(async (user) => {
+      if (user.profile_url) {
+        try {
+          user.profile_url = await generatePresignedUrl(
+            user.profile_url,
+            NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+          );
+        } catch (error) {
+          console.error(`Failed to generate presigned URL for user ${user._id}:`, error.message);
+          // Keep original S3 key if presigned URL generation fails
+        }
+      }
+      return user;
+    })
+  );
+
   return {
-    users,
+    users: usersWithPresignedUrls,
     pagination: {
       total,
       page,
@@ -275,14 +307,19 @@ export const getUserByIdService = async (userId) => {
 
   const publicProfile = user.getPublicProfile();
 
-  // Fetch followers and following counts in parallel
-  const [followersCount, followingCount] = await Promise.all([
+  // Fetch followers, following counts, and user interests
+
+  const [followersCount, followingCount, following, userInterests] = await Promise.all([
     Follower.countDocuments({ following_id: user._id }),
     Follower.countDocuments({ follower_id: user._id }),
+    Follower.find({ follower_id: user._id }).select('following_id'),
+    UserInterest.findOne({ user_id: user._id }).select('interest'),
   ]);
 
   publicProfile.followers_count = followersCount;
   publicProfile.following_count = followingCount;
+  publicProfile.following_ids = following.map((f) => f.following_id);
+  publicProfile.interests = userInterests ? userInterests.interest : [];
 
   // Generate presigned URL for the profile image if it exists
   if (publicProfile.profile_url) {

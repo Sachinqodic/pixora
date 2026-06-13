@@ -17,6 +17,7 @@ import { NUMERIC_CONSTANTS, ERROR_MESSAGES } from '../constants/index.js';
 import { NotFoundError } from '../utils/errors.js';
 import { getUserInterestsFromCache, getFollowingIdsFromCache } from '../utils/feedCache.js';
 import { addLikedByUserFlag } from '../helpers/likeHelper.js';
+import { addSavedToBoardFlag } from '../helpers/boardHelper.js';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
@@ -78,6 +79,7 @@ const attachPresignedUrls = async (posts) => {
   return Promise.all(
     posts.map(async (post) => {
       try {
+        // Generate presigned URL for post media
         let keyToUse = post.media_url;
         if (post.status === 'uploaded' || !post.media_url || post.media_url === 'processing') {
           keyToUse = post.original_media_url;
@@ -87,6 +89,22 @@ const attachPresignedUrls = async (posts) => {
             keyToUse,
             NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
           );
+        }
+
+        // Generate presigned URL for user profile picture
+        if (post.user_id && post.user_id.profile_url) {
+          try {
+            post.user_id.profile_url = await generatePresignedUrl(
+              post.user_id.profile_url,
+              NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+            );
+          } catch (profileErr) {
+            console.error(
+              `Failed to generate profile URL for user ${post.user_id._id}:`,
+              profileErr.message
+            );
+            // Keep original S3 key if presigned URL generation fails
+          }
         }
       } catch (err) {
         console.error(`Failed to generate URL for post ${post._id}:`, err.message);
@@ -399,19 +417,104 @@ export const getPostById = async (postId, currentUserId = null) => {
 };
 
 /**
- * Get all posts with smart personalized feed
+ * Build search aggregation pipeline
+ * Uses hybrid approach: MongoDB text search + regex for partial matches
+ * This ensures both full-word matches and partial word matches work
+ */
+const buildSearchPipeline = (searchTerm, skip, limit) => [
+  {
+    $match: {
+      status: { $ne: 'failed' },
+      $or: [
+        // Full-text search for complete words (higher relevance)
+        { $text: { $search: searchTerm } },
+        // Regex search for partial matches (fallback)
+        { title: { $regex: searchTerm, $options: 'i' } },
+        { description: { $regex: searchTerm, $options: 'i' } },
+        { category: { $regex: searchTerm, $options: 'i' } },
+      ],
+    },
+  },
+  {
+    $addFields: {
+      // Calculate relevance score
+      relevanceScore: {
+        $sum: [
+          // Higher score for text search matches (complete words)
+          {
+            $cond: [
+              {
+                $gt: [
+                  {
+                    $ifNull: [{ $meta: 'textScore' }, 0],
+                  },
+                  0,
+                ],
+              },
+              { $multiply: [{ $meta: 'textScore' }, 10] }, // Boost text search score
+              0,
+            ],
+          },
+          // Lower score for partial matches in title
+          {
+            $cond: [{ $regexMatch: { input: '$title', regex: searchTerm, options: 'i' } }, 5, 0],
+          },
+          // Lower score for partial matches in description
+          {
+            $cond: [
+              { $regexMatch: { input: '$description', regex: searchTerm, options: 'i' } },
+              3,
+              0,
+            ],
+          },
+          // Lower score for partial matches in category
+          {
+            $cond: [{ $regexMatch: { input: '$category', regex: searchTerm, options: 'i' } }, 2, 0],
+          },
+        ],
+      },
+    },
+  },
+  { $sort: { relevanceScore: -1, created_at: -1 } }, // Sort by relevance, then date
+  { $skip: skip },
+  { $limit: limit },
+  {
+    $lookup: {
+      from: 'users',
+      localField: 'user_id',
+      foreignField: '_id',
+      as: 'user_id',
+      pipeline: [{ $project: { name: 1, profile_url: 1 } }],
+    },
+  },
+  { $unwind: { path: '$user_id', preserveNullAndEmptyArrays: true } },
+  ...buildCountStages(),
+  { $project: { relevanceScore: 0 } }, // Remove score from response
+];
+
+/**
+ * Get all posts with smart personalized feed and search functionality
  * @param {number} page - Page number
  * @param {number} limit - Posts per page
  * @param {string|null} userId - User ID for personalization (if logged in)
+ * @param {string|null} searchTerm - Search term for title/description/category
  * @returns {Promise<Array>} - List of posts
  */
-export const getAllPostsService = async (page = 1, limit = 20, userId = null) => {
+export const getAllPostsService = async (
+  page = 1,
+  limit = 20,
+  userId = null,
+  searchTerm = null
+) => {
   const skip = (page - 1) * limit;
 
   let posts;
 
-  // If userId provided, build smart personalized feed
-  if (userId) {
+  // If search term is provided, use search pipeline
+  if (searchTerm) {
+    posts = await Post.aggregate(buildSearchPipeline(searchTerm, skip, limit));
+  } else if (userId) {
+    // If userId provided, build smart personalized feed
     // Get user interests & following from cache (fast)
     const [interests, followingIds] = await Promise.all([
       getUserInterestsFromCache(userId.toString()),
@@ -441,9 +544,10 @@ export const getAllPostsService = async (page = 1, limit = 20, userId = null) =>
     ]);
   }
 
-  // Attach presigned URLs and liked flag
+  // Attach presigned URLs, liked flag, and board flag
   const postsWithUrls = await attachPresignedUrls(posts);
-  return addLikedByUserFlag(postsWithUrls, userId);
+  const postsWithLikedFlag = await addLikedByUserFlag(postsWithUrls, userId);
+  return addSavedToBoardFlag(postsWithLikedFlag, userId);
 };
 
 /**
@@ -562,7 +666,8 @@ export const getFollowingPostsService = async (userId, page = 1, limit = 20) => 
   const posts = await Post.aggregate(buildFollowingPostsPipeline(userId, skip, limit));
 
   const postsWithUrls = await attachPresignedUrls(posts);
-  return addLikedByUserFlag(postsWithUrls, userId);
+  const postsWithLikedFlag = await addLikedByUserFlag(postsWithUrls, userId);
+  return addSavedToBoardFlag(postsWithLikedFlag, userId);
 };
 
 /**
@@ -579,5 +684,6 @@ export const getUserPostsService = async (userId, page = 1, limit = 20, currentU
   const posts = await Post.aggregate(buildUserPostsPipeline(userId, skip, limit));
 
   const postsWithUrls = await attachPresignedUrls(posts);
-  return addLikedByUserFlag(postsWithUrls, currentUserId);
+  const postsWithLikedFlag = await addLikedByUserFlag(postsWithUrls, currentUserId);
+  return addSavedToBoardFlag(postsWithLikedFlag, currentUserId);
 };

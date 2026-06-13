@@ -6,6 +6,7 @@ import { uploadBoardCoverImage, generatePresignedUrl, deleteFromS3 } from './s3S
 import { NotFoundError } from '../utils/errors.js';
 import { ERROR_MESSAGES, NUMERIC_CONSTANTS } from '../constants/index.js';
 import { addLikedByUserFlag } from '../helpers/likeHelper.js';
+import { addSavedToBoardFlag } from '../helpers/boardHelper.js';
 
 /**
  * Attach presigned URLs to boards
@@ -309,9 +310,10 @@ export const getBoardPinsService = async (boardId, page = 1, limit = 20, current
 
   const pinsWithUrls = await attachPresignedUrlsToPosts(pins);
   const pinsWithLikedFlag = await addLikedByUserFlag(pinsWithUrls, currentUserId);
+  const pinsWithBoardFlag = await addSavedToBoardFlag(pinsWithLikedFlag, currentUserId);
 
   return {
-    pins: pinsWithLikedFlag,
+    pins: pinsWithBoardFlag,
     pagination: {
       total,
       page,
