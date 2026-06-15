@@ -374,17 +374,22 @@ export const createPostService = async (postData, file) => {
  * TODO:Need to include the likes,and comments, and views count in the response.
  */
 export const getPostById = async (postId, currentUserId = null) => {
-  const post = await Post.findById(postId).populate('user_id', 'name avatar');
+  const post = await Post.findById(postId).populate('user_id', 'name profile_url');
   if (!post) {
     throw new NotFoundError(ERROR_MESSAGES.POST_NOT_FOUND);
   }
 
-  // Get likes count, comments count, and user's like status in parallel
-  const [totalLikes, totalComments, userLike] = await Promise.all([
+  // Get likes count, comments count, user's like status, and board status in parallel
+  const { default: BoardPost } = await import('../models/BoardPost.js');
+
+  const [totalLikes, totalComments, userLike, boardEntry] = await Promise.all([
     Like.countDocuments({ post_id: postId }),
     Comments.countDocuments({ post_id: postId }),
     currentUserId
       ? Like.findOne({ post_id: postId, user_id: currentUserId })
+      : Promise.resolve(null),
+    currentUserId
+      ? BoardPost.findOne({ post_id: postId, user_id: currentUserId })
       : Promise.resolve(null),
   ]);
 
@@ -396,8 +401,10 @@ export const getPostById = async (postId, currentUserId = null) => {
     keyToUse = postObj.original_media_url;
   }
 
-  // Generate presigned URL
+  // Generate presigned URLs
   const { generatePresignedUrl } = await import('./s3Service.js');
+
+  // Generate presigned URL for post media
   try {
     if (keyToUse && keyToUse !== 'uploading' && keyToUse !== 'processing') {
       postObj.media_url = await generatePresignedUrl(
@@ -409,9 +416,22 @@ export const getPostById = async (postId, currentUserId = null) => {
     console.error(`Failed to generate URL for post ${post._id}:`, err.message);
   }
 
+  // Generate presigned URL for user profile image
+  if (postObj.user_id && postObj.user_id.profile_url) {
+    try {
+      postObj.user_id.profile_url = await generatePresignedUrl(
+        postObj.user_id.profile_url,
+        NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+      );
+    } catch (err) {
+      console.error(`Failed to generate URL for user profile:`, err.message);
+    }
+  }
+
   postObj.totalLikes = totalLikes;
   postObj.totalComments = totalComments;
   postObj.isLikedByCurrentUser = !!userLike;
+  postObj.isAddedToBoardsByCurrentUser = !!boardEntry;
 
   return postObj;
 };
