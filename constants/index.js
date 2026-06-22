@@ -306,8 +306,8 @@ Object.freeze(FILE_UPLOAD);
 
 // JWT Token types Constants
 export const JWT_TOKEN_TYPES = {
-  ACCESS_TOKEN: 'accessToken',
-  REFRESH_TOKEN: 'refreshToken',
+  ACCESS_TOKEN: 'access_token',
+  REFRESH_TOKEN: 'refresh_token',
   PASSWORD_RESET_TOKEN: 'passwordResetToken',
 };
 
