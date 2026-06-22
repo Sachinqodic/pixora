@@ -74,6 +74,7 @@ const corsOptions = {
   credentials: config.cors.credentials,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Set-Cookie'], // Expose Set-Cookie header so frontend can see cookies
   maxAge: 600, // Cache preflight requests for 10 minutes
 };
 
