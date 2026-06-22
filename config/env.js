@@ -83,7 +83,7 @@ export const config = {
     geminiApiKey: process.env.GEMINI_API_KEY,
   },
 
-  // AWS S3 Configuration
+  // AWS S3 Configuration (DEPRECATED - keeping for backward compatibility)
   aws: {
     s3: {
       bucketName: process.env.AWS_S3_BUCKET_NAME || '',
@@ -91,6 +91,13 @@ export const config = {
       accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
     },
+  },
+
+  // Cloudinary Configuration (Replaces AWS S3)
+  cloudinary: {
+    cloudName: process.env.CLOUD_NAME || '',
+    apiKey: process.env.CLOUDINARY_API_KEY || '',
+    apiSecret: process.env.CLOUDINARY_SECRET_KEY || '',
   },
 
   // Stripe Configuration

@@ -279,14 +279,15 @@ const uploadAndProcess = async (file, postId, userId) => {
     // Determine resource type
     const resourceType = file.mimetype.startsWith('image/') ? 'image' : 'video';
 
-    // Generate optimized key
+    // Generate optimized key (will be used after optimization completes)
     const optimizedKey = getOptimizedKey(originalKey);
 
-    // Update post with S3 keys and file size
+    // Update post with Cloudinary keys and file size
+    // Initially use original_media_url for media_url until optimization completes
     const fileSize = file.buffer.length;
     await Post.findByIdAndUpdate(postId, {
       original_media_url: originalKey,
-      media_url: optimizedKey,
+      media_url: originalKey, // Use original until processed version is ready
       status: 'uploaded',
       file_size: fileSize, // Store file size for quota management
     });
@@ -586,10 +587,11 @@ export const deletePostById = async (postId) => {
     throw new NotFoundError(ERROR_MESSAGES.POST_NOT_FOUND);
   }
 
-  // Delete media from S3 and post from database in parallel
+  // Delete media from Cloudinary and post from database in parallel
+  // Pass resource_type to ensure correct deletion
   await Promise.all([
-    deleteFromS3(post.original_media_url),
-    deleteFromS3(post.media_url),
+    deleteFromS3(post.original_media_url, post.resource_type),
+    deleteFromS3(post.media_url, post.resource_type),
     Post.findByIdAndDelete(postId),
   ]);
 

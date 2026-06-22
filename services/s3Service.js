@@ -1,75 +1,69 @@
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-  DeleteObjectCommand,
-} from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { v2 as cloudinary } from 'cloudinary';
 import { config } from '../config/env.js';
 import { NUMERIC_CONSTANTS } from '../constants/index.js';
 
-let s3Client = null;
+let cloudinaryInitialized = false;
 
-// S3 folder constants
+// Folder constants (kept for backward compatibility with existing code)
 export const ORIGINAL_FOLDER = 'original';
 export const PROCESSED_FOLDER = 'processed';
 export const AI_TEMP_FOLDER = 'temp-ai';
-export const BUCKET_NAME = config.aws.s3.bucketName;
+export const BUCKET_NAME = config.cloudinary.cloudName; // For backward compatibility
 
 /**
- * Initialize S3 client
+ * Initialize Cloudinary client
  */
-function initializeS3Client() {
-  if (!s3Client) {
-    s3Client = new S3Client({
-      region: config.aws.s3.region,
-      credentials: {
-        accessKeyId: config.aws.s3.accessKeyId,
-        secretAccessKey: config.aws.s3.secretAccessKey,
-      },
+function initializeCloudinary() {
+  if (!cloudinaryInitialized) {
+    cloudinary.config({
+      cloud_name: config.cloudinary.cloudName,
+      api_key: config.cloudinary.apiKey,
+      api_secret: config.cloudinary.apiSecret,
+      secure: true, // Use HTTPS URLs
     });
+    cloudinaryInitialized = true;
   }
-  return s3Client;
+  return cloudinary;
 }
 
 /**
- * Generate unique object key for user profile image
+ * Generate unique public_id for user profile image
  *
  * @param {string} userId - User's MongoDB ID
- * @param {string} extension - File extension
- * @returns {string} - Generated object key
+ * @param {string} extension - File extension (ignored by Cloudinary, kept for compatibility)
+ * @returns {string} - Generated public_id
  */
 export function generateProfileImageKey(userId, extension = 'jpg') {
   const timestamp = Date.now();
-  return `profile-images/${userId}/${timestamp}.${extension}`;
+  return `profile-images/${userId}/${timestamp}`;
 }
 
 /**
- * Generate unique object key for media content (Pinterest clone)
+ * Generate unique public_id for media content (Pinterest clone)
  *
  * @param {string} userId - User's MongoDB ID
- * @param {string} extension - File extension
+ * @param {string} extension - File extension (ignored by Cloudinary, kept for compatibility)
  * @param {string} folder - Folder type ('original' or 'processed')
  */
 export function generateMediaContentKey(userId, extension, folder = ORIGINAL_FOLDER) {
   const timestamp = Date.now();
-  return `media-content/${folder}/${userId}/${timestamp}.${extension}`;
+  return `media-content/${folder}/${userId}/${timestamp}`;
 }
 
 /**
- * Generate unique object key for board cover image
+ * Generate unique public_id for board cover image
  *
  * @param {string} userId - User's MongoDB ID
- * @param {string} extension - File extension
- * @returns {string} - Generated object key
+ * @param {string} extension - File extension (ignored by Cloudinary, kept for compatibility)
+ * @returns {string} - Generated public_id
  */
 export function generateBoardCoverKey(userId, extension = 'jpg') {
   const timestamp = Date.now();
-  return `board-cover-images/${userId}/${timestamp}.${extension}`;
+  return `board-cover-images/${userId}/${timestamp}`;
 }
 
 /**
- * Upload profile image to S3
+ * Upload profile image to Cloudinary
  *
  * @param {Buffer} imageBuffer - Image buffer from multer
  * @param {string} userId - User's MongoDB ID
@@ -88,61 +82,62 @@ export async function uploadProfileImage(imageBuffer, userId, mimetype) {
     // Get file extension from mimetype
     const extension = mimetype.split('/')[1] || 'jpg';
 
-    // Generate unique object key
-    const objectKey = generateProfileImageKey(userId, extension);
+    // Generate unique public_id
+    const publicId = generateProfileImageKey(userId, extension);
 
-    // Initialize S3 client
-    const client = initializeS3Client();
+    // Initialize Cloudinary
+    initializeCloudinary();
 
-    // Upload to S3
-    const uploadParams = {
-      Bucket: config.aws.s3.bucketName,
-      Key: objectKey,
-      Body: imageBuffer,
-      ContentType: mimetype,
-      Metadata: {
+    // Convert buffer to base64
+    const base64Image = `data:${mimetype};base64,${imageBuffer.toString('base64')}`;
+
+    // Upload to Cloudinary (don't specify folder parameter since public_id already includes it)
+    const result = await cloudinary.uploader.upload(base64Image, {
+      public_id: publicId,
+      resource_type: 'image',
+      transformation: [
+        { width: 500, height: 500, crop: 'fill', gravity: 'face' },
+        { quality: 'auto', fetch_format: 'auto' },
+      ],
+      context: {
         userId: userId.toString(),
         uploadedAt: new Date().toISOString(),
       },
-    };
+    });
 
-    const command = new PutObjectCommand(uploadParams);
-    await client.send(command);
-
-    // Generate presigned URL for GET (viewing) - valid for 2 minutes
-    const presignedUrl = await getSignedUrl(
-      client,
-      new GetObjectCommand({
-        Bucket: config.aws.s3.bucketName,
-        Key: objectKey,
-      }),
-      { expiresIn: NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS }
-    );
+    // Generate signed URL (valid for 2 minutes)
+    const presignedUrl = cloudinary.url(result.public_id, {
+      sign_url: true,
+      type: 'upload',
+      resource_type: 'image',
+      expires_at: Math.floor(Date.now() / 1000) + NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS,
+      secure: true,
+    });
 
     return {
       success: true,
-      objectKey,
+      objectKey: result.public_id, // Return public_id as objectKey for compatibility
       presignedUrl,
     };
   } catch (error) {
-    console.error('Error uploading profile image to S3:', error);
+    console.error('Error uploading profile image to Cloudinary:', error);
     return {
       success: false,
-      error: 'Failed to upload profile image to S3',
+      error: 'Failed to upload profile image to Cloudinary',
     };
   }
 }
 
 /**
- * Upload media to S3 (for posts - images/videos)
- * Returns only the S3 object key (not the full URL for security)
+ * Upload media to Cloudinary (for posts - images/videos)
+ * Returns only the Cloudinary public_id (not the full URL for security)
  *
  * @param {Buffer} fileBuffer - File buffer from multer
  * @param {string} fileName - Original file name
  * @param {string} mimeType - File MIME type
  * @param {string} folder - Folder type ('original' or 'processed')
  * @param {string} userId - User's MongoDB ID
- * @returns {Promise<string>} - S3 object key
+ * @returns {Promise<string>} - Cloudinary public_id
  */
 export const uploadToS3 = async (
   fileBuffer,
@@ -151,38 +146,41 @@ export const uploadToS3 = async (
   folder = ORIGINAL_FOLDER,
   userId = null
 ) => {
-  let key;
+  let publicId;
 
   if (userId) {
     // Get file extension from filename or mimetype
     const extension = fileName.split('.').pop() || mimeType.split('/')[1] || 'jpg';
     // Use generateMediaContentKey for proper folder structure
-    key = generateMediaContentKey(userId, extension, folder);
+    publicId = generateMediaContentKey(userId, extension, folder);
   } else {
     // Fallback for backward compatibility
-    key = `media-content/${folder}/${Date.now()}-${fileName}`;
+    publicId = `media-content/${folder}/${Date.now()}-${fileName.replace(/\.[^/.]+$/, '')}`;
   }
 
-  const client = initializeS3Client();
+  initializeCloudinary();
 
-  const command = new PutObjectCommand({
-    Bucket: config.aws.s3.bucketName,
-    Key: key,
-    Body: fileBuffer,
-    ContentType: mimeType,
+  // Convert buffer to base64
+  const base64File = `data:${mimeType};base64,${fileBuffer.toString('base64')}`;
+
+  // Determine resource type
+  const resourceType = mimeType.startsWith('video/') ? 'video' : 'image';
+
+  // Upload to Cloudinary (don't specify folder parameter since public_id already includes it)
+  const result = await cloudinary.uploader.upload(base64File, {
+    public_id: publicId,
+    resource_type: resourceType,
   });
 
-  await client.send(command);
-
-  // Return only the S3 key (not the full URL for security)
-  return key;
+  // Return only the public_id (not the full URL for security)
+  return result.public_id;
 };
 
 /**
  * Get optimized key from original key
  *
- * @param {string} originalKey - Original S3 key
- * @returns {string} - Optimized S3 key
+ * @param {string} originalKey - Original Cloudinary public_id
+ * @returns {string} - Optimized Cloudinary public_id
  */
 export const getOptimizedKey = (originalKey) => {
   if (!originalKey) return null;
@@ -195,116 +193,195 @@ export const getOptimizedKey = (originalKey) => {
 };
 
 /**
- * Delete object from S3
+ * Delete object from Cloudinary
  *
- * @param {string} key - S3 object key to delete
+ * @param {string} key - Cloudinary public_id to delete
+ * @param {string} resourceType - Optional resource type ('image' or 'video')
  * @returns {Promise<boolean>} - True if deletion was successful
  */
-export const deleteFromS3 = async (key) => {
+export const deleteFromS3 = async (key, resourceType = null) => {
   try {
-    const client = initializeS3Client();
+    if (!key) {
+      console.warn('Cannot delete: key is null or undefined');
+      return false;
+    }
 
-    const command = new DeleteObjectCommand({
-      Bucket: config.aws.s3.bucketName,
-      Key: key,
+    initializeCloudinary();
+
+    // If resource type not provided, try to determine it or try both
+    if (!resourceType) {
+      // Try image first
+      try {
+        const result = await cloudinary.uploader.destroy(key, {
+          resource_type: 'image',
+        });
+
+        if (result.result === 'ok') {
+          console.log(`Successfully deleted image from Cloudinary: ${key}`);
+          return true;
+        }
+      } catch (imageError) {
+        // Image deletion failed, try video
+      }
+
+      // Try video
+      try {
+        const result = await cloudinary.uploader.destroy(key, {
+          resource_type: 'video',
+        });
+
+        if (result.result === 'ok' || result.result === 'not found') {
+          console.log(`Successfully deleted video from Cloudinary: ${key}`);
+          return true;
+        }
+      } catch (videoError) {
+        console.warn(`Failed to delete from Cloudinary (tried both image and video): ${key}`);
+        return false;
+      }
+
+      return false;
+    }
+
+    // Resource type provided
+    const result = await cloudinary.uploader.destroy(key, {
+      resource_type: resourceType,
     });
 
-    await client.send(command);
+    if (result.result === 'ok' || result.result === 'not found') {
+      console.log(`Successfully deleted object from Cloudinary: ${key}`);
+      return true;
+    }
 
-    console.log(`Successfully deleted object from S3: ${key}`);
-    return true;
+    console.warn(`Failed to delete object from Cloudinary: ${key}`, result);
+    return false;
   } catch (error) {
-    console.error('Error deleting object from S3:', error);
+    console.error('Error deleting object from Cloudinary:', error);
     return false;
   }
 };
 
 /**
- * Generate presigned URL for existing S3 object
+ * Generate signed URL for existing Cloudinary object
  *
- * @param {string} objectKey - S3 object key
+ * @param {string} objectKey - Cloudinary public_id
  * @param {number} expiresIn - Expiration time in seconds (default: 120 seconds = 2 minutes)
- * @returns {Promise<string>} - Presigned URL
+ * @returns {Promise<string>} - Signed URL
  */
 export async function generatePresignedUrl(
   objectKey,
   expiresIn = NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
 ) {
   try {
-    const client = initializeS3Client();
+    if (!objectKey) {
+      throw new Error('Object key is required');
+    }
 
-    const command = new GetObjectCommand({
-      Bucket: config.aws.s3.bucketName,
-      Key: objectKey,
+    initializeCloudinary();
+
+    // First, check if the resource exists and get its resource_type
+    let resourceType = 'image';
+
+    try {
+      // Try as image first
+      await cloudinary.api.resource(objectKey, { resource_type: 'image' });
+      resourceType = 'image';
+    } catch (imageError) {
+      // If not found as image, try as video
+      try {
+        await cloudinary.api.resource(objectKey, { resource_type: 'video' });
+        resourceType = 'video';
+      } catch (videoError) {
+        // If still not found, default to image and let it fail with proper error
+        console.warn(`Resource not found in Cloudinary: ${objectKey}`);
+        resourceType = 'image';
+      }
+    }
+
+    // Generate signed URL with expiration
+    const signedUrl = cloudinary.url(objectKey, {
+      sign_url: true,
+      type: 'upload',
+      resource_type: resourceType,
+      expires_at: Math.floor(Date.now() / 1000) + expiresIn,
+      secure: true,
     });
 
-    const presignedUrl = await getSignedUrl(client, command, { expiresIn });
-    return presignedUrl;
+    return signedUrl;
   } catch (error) {
-    throw new Error(ERROR_MESSAGES.S3_GENERATE_PRESIGNED_URL_FAILED);
+    throw new Error('Failed to generate Cloudinary signed URL: ' + error.message);
   }
 }
 
 /**
- * Upload a buffer to S3 and return a presigned URL immediately.
- * Useful for providing temporary access to AI models like OpenAI Vision.
+ * Upload a buffer to Cloudinary and return a signed URL immediately.
+ * Useful for providing temporary access to AI models like Gemini Vision.
  *
  * @param {Buffer} buffer - File buffer
  * @param {string} mimeType - MIME type
  * @param {string} userId - User ID
- * @returns {Promise<string>} - Presigned URL
+ * @returns {Promise<string>} - Signed URL
  */
 export const uploadToS3AndGetPresignedUrl = async (buffer, mimeType, userId) => {
   const extension = mimeType.split('/')[1] || 'jpg';
-  const key = `media-content/${AI_TEMP_FOLDER}/${userId}/${Date.now()}.${extension}`;
+  const publicId = `media-content/${AI_TEMP_FOLDER}/${userId}/${Date.now()}`;
 
-  const client = initializeS3Client();
+  initializeCloudinary();
 
-  // Upload
-  await client.send(
-    new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-      Body: buffer,
-      ContentType: mimeType,
-    })
-  );
+  // Convert buffer to base64
+  const base64File = `data:${mimeType};base64,${buffer.toString('base64')}`;
 
-  // Generate Presigned URL (valid for 10 minutes for AI processing)
-  const presignedUrl = await generatePresignedUrl(key, 600);
+  // Upload (don't specify folder parameter since public_id already includes it)
+  const result = await cloudinary.uploader.upload(base64File, {
+    public_id: publicId,
+    resource_type: 'image',
+  });
 
-  return presignedUrl;
+  // Generate Signed URL (valid for 10 minutes for AI processing)
+  const signedUrl = cloudinary.url(result.public_id, {
+    sign_url: true,
+    type: 'upload',
+    resource_type: 'image',
+    expires_at: Math.floor(Date.now() / 1000) + 600,
+    secure: true,
+  });
+
+  return signedUrl;
 };
 
 /**
- * Upload board cover image to S3
+ * Upload board cover image to Cloudinary
  *
  * @param {Buffer} fileBuffer - File buffer from multer
  * @param {string} fileName - Original file name
  * @param {string} mimeType - File MIME type
  * @param {string} userId - User's MongoDB ID
- * @returns {Promise<string>} - S3 object key
+ * @returns {Promise<string>} - Cloudinary public_id
  */
 export async function uploadBoardCoverImage(fileBuffer, fileName, mimeType, userId) {
   const extension = fileName.split('.').pop() || mimeType.split('/')[1] || 'jpg';
-  const objectKey = generateBoardCoverKey(userId, extension);
+  const publicId = generateBoardCoverKey(userId, extension);
 
-  const client = initializeS3Client();
+  initializeCloudinary();
 
-  const command = new PutObjectCommand({
-    Bucket: config.aws.s3.bucketName,
-    Key: objectKey,
-    Body: fileBuffer,
-    ContentType: mimeType,
-    Metadata: {
+  // Convert buffer to base64
+  const base64Image = `data:${mimeType};base64,${fileBuffer.toString('base64')}`;
+
+  // Upload to Cloudinary (don't specify folder parameter since public_id already includes it)
+  const result = await cloudinary.uploader.upload(base64Image, {
+    public_id: publicId,
+    resource_type: 'image',
+    transformation: [
+      { width: 800, height: 400, crop: 'fill' },
+      { quality: 'auto', fetch_format: 'auto' },
+    ],
+    context: {
       userId: userId.toString(),
       uploadedAt: new Date().toISOString(),
     },
   });
 
-  await client.send(command);
-  return objectKey;
+  return result.public_id;
 }
 
-// Export s3Client for direct use in optimization
-export { s3Client };
+// Export cloudinary instance for direct use if needed
+export { cloudinary };
