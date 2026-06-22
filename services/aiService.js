@@ -1,10 +1,9 @@
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../config/env.js';
 import AiSuggestion from '../models/AiSuggestion.js';
 
-const openai = new OpenAI({
-  apiKey: config.security.openaiApiKey,
-});
+// Initialize Google Gemini
+const genAI = new GoogleGenerativeAI(config.security.geminiApiKey);
 
 /**
  * Valid categories for Pins
@@ -88,38 +87,63 @@ export const processAiSuggestionInBackground = async (suggestionId, mediaUrl) =>
 export const generatePinMetadata = async (mediaUrl) => {
   try {
     if (
-      !config.security.openaiApiKey ||
-      config.security.openaiApiKey === 'your_openai_api_key_here'
+      !config.security.geminiApiKey ||
+      config.security.geminiApiKey === 'your_gemini_api_key_here'
     ) {
-      throw new Error('OpenAI API key is missing');
+      throw new Error('Google Gemini API key is missing');
     }
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a creative assistant for a Pinterest-like platform called Pixora. 
-          Analyze the provided image and suggest a catchy title, a detailed 2-sentence description, and exactly one category from the following list: ${PIN_CATEGORIES.join(', ')}.
-          Your response must be in JSON format.`,
-        },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Please analyze this image and suggest metadata for a Pin.' },
-            {
-              type: 'image_url',
-              image_url: {
-                url: mediaUrl, // Using S3 URL instead of Base64
-              },
-            },
-          ],
-        },
-      ],
-      response_format: { type: 'json_object' },
-    });
+    // Get the generative model
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-    const content = JSON.parse(response.choices[0].message.content);
+    // Fetch the image from URL
+    const imageResponse = await fetch(mediaUrl);
+    const imageBuffer = await imageResponse.arrayBuffer();
+    const imageBase64 = Buffer.from(imageBuffer).toString('base64');
+
+    // Determine MIME type from URL or default to jpeg
+    const mimeType = mediaUrl.includes('.png')
+      ? 'image/png'
+      : mediaUrl.includes('.webp')
+        ? 'image/webp'
+        : 'image/jpeg';
+
+    const prompt = `You are a creative assistant for a Pinterest-like platform called Pixora. 
+Analyze the provided image and suggest:
+1. A catchy title (max 100 characters)
+2. A detailed description (2-3 sentences)
+3. Exactly ONE category from this list: ${PIN_CATEGORIES.join(', ')}
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "title": "suggested title here",
+  "description": "suggested description here",
+  "category": "one category from the list"
+}`;
+
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          data: imageBase64,
+          mimeType: mimeType,
+        },
+      },
+    ]);
+
+    const response = result.response;
+    const text = response.text();
+
+    // Parse JSON from response (Gemini might wrap it in markdown)
+    let content;
+    try {
+      // Try to extract JSON from markdown code blocks
+      const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
+      content = JSON.parse(jsonMatch ? jsonMatch[1] || jsonMatch[0] : text);
+    } catch (parseError) {
+      console.error('Failed to parse Gemini response:', text);
+      throw new Error('Invalid JSON response from Gemini');
+    }
 
     // Normalize keys to lowercase/standard names
     return {

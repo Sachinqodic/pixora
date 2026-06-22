@@ -80,7 +80,7 @@ export const config = {
     jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
     sendGridSendorEmail: process.env.SEND_GRID_SENDOR_EMAIL,
     sendGridApiKey: process.env.SEND_GRID_API_KEY,
-    openaiApiKey: process.env.OPENAI_API_KEY,
+    geminiApiKey: process.env.GEMINI_API_KEY,
   },
 
   // AWS S3 Configuration
