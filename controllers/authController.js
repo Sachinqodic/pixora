@@ -5,7 +5,7 @@ import {
   forgotPasswordService,
   resetPasswordService,
 } from '../services/authService.js';
-import { HTTP_STATUS, MESSAGES } from '../constants/index.js';
+import { HTTP_STATUS, MESSAGES, JWT_TOKEN_TYPES } from '../constants/index.js';
 import { BaseController } from './baseController.js';
 import { setAuthCookies } from '../utils/cookieUtil.js';
 
@@ -69,7 +69,7 @@ export const login = baseController.handleRequest(async (req, res) => {
  * @route POST /api/auth/refresh
  */
 export const refreshToken = baseController.handleRequest(async (req, res) => {
-  const refreshToken = req.cookies.refreshToken;
+  const refreshToken = req.cookies[JWT_TOKEN_TYPES.REFRESH_TOKEN];
 
   const result = await accessTokenReCreation(refreshToken);
 

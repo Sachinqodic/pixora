@@ -21,7 +21,7 @@ import { AuthenticationError, ForbiddenError } from '../utils/errors.js';
  */
 export const protectedRoute = async (req, res, next) => {
   try {
-    const token = req.cookies.accessToken;
+    const token = req.cookies[JWT_TOKEN_TYPES.ACCESS_TOKEN];
     const decoded = verifyToken(
       token,
       config.security.jwtSecret,
@@ -61,7 +61,7 @@ export const protectedRoute = async (req, res, next) => {
  */
 export const authChecker = async (req, res, next) => {
   try {
-    const token = req.cookies.accessToken;
+    const token = req.cookies[JWT_TOKEN_TYPES.ACCESS_TOKEN];
     const decoded = verifyToken(
       token,
       config.security.jwtSecret,
@@ -72,7 +72,7 @@ export const authChecker = async (req, res, next) => {
     if (!user || user?.deleted_at !== null || user?.is_active === false) {
       throw new AuthenticationError(ERROR_MESSAGES.INVALID_TOKEN);
     }
-    req.user=user;
+    req.user = user;
     next();
   } catch (error) {
     return res
