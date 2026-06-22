@@ -13,12 +13,14 @@ import {
   getAllPosts,
   getFollowingPosts,
   getUserPosts,
+  updatePostMetadata,
 } from '../controllers/postController.js';
 import {
   validateCreatePost,
   validateFileUpload,
   validatePostId,
   validateSearchQuery,
+  validateEditPost,
 } from '../validations/postValidation.js';
 
 const router = express.Router();
@@ -104,6 +106,11 @@ router.get('/user/:id', authChecker, getUserPosts);
  * Get the Pin by id
  */
 router.get('/:id', authChecker, validatePostId, getPost);
+
+/*
+ * Update post title and description
+ */
+router.patch('/:id', authChecker, validatePostId, validateEditPost, updatePostMetadata);
 
 /*
  * Delete the Pin by id

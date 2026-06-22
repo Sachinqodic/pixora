@@ -433,6 +433,10 @@ export const getPostById = async (postId, currentUserId = null) => {
   postObj.isLikedByCurrentUser = !!userLike;
   postObj.isAddedToBoardsByCurrentUser = !!boardEntry;
 
+  // Ensure title and description are always present (even if null/empty)
+  if (!postObj.title) postObj.title = null;
+  if (!postObj.description) postObj.description = null;
+
   return postObj;
 };
 
@@ -706,4 +710,79 @@ export const getUserPostsService = async (userId, page = 1, limit = 20, currentU
   const postsWithUrls = await attachPresignedUrls(posts);
   const postsWithLikedFlag = await addLikedByUserFlag(postsWithUrls, currentUserId);
   return addSavedToBoardFlag(postsWithLikedFlag, currentUserId);
+};
+
+/**
+ * Update post title and description
+ * @param {string} postId - The ID of the post to update
+ * @param {string} userId - The ID of the user making the update (for authorization)
+ * @param {Object} updateData - Object containing title and/or description
+ * @returns {Promise<Object>} - Updated post
+ */
+export const updatePostMetadataService = async (postId, userId, updateData) => {
+  // Find the post
+  const post = await Post.findById(postId);
+
+  if (!post) {
+    throw new NotFoundError(ERROR_MESSAGES.POST_NOT_FOUND);
+  }
+
+  // Check if user owns the post
+  if (post.user_id.toString() !== userId.toString()) {
+    const { UnauthorizedError } = await import('../utils/errors.js');
+    throw new UnauthorizedError('You are not authorized to edit this post');
+  }
+
+  // Update only provided fields
+  const updates = {};
+  if (updateData.title !== undefined) updates.title = updateData.title;
+  if (updateData.description !== undefined) updates.description = updateData.description;
+
+  // Update the post
+  const updatedPost = await Post.findByIdAndUpdate(
+    postId,
+    { $set: updates },
+    { new: true, runValidators: true }
+  ).populate('user_id', 'name profile_url');
+
+  // Generate presigned URLs
+  const postObj = updatedPost.toObject();
+
+  // FALLBACK: If optimized media isn't ready yet, use the original high-quality one
+  let keyToUse = postObj.media_url;
+  if (
+    updatedPost.status === 'uploaded' ||
+    !updatedPost.media_url ||
+    updatedPost.media_url === 'processing'
+  ) {
+    keyToUse = postObj.original_media_url;
+  }
+
+  const { generatePresignedUrl } = await import('./s3Service.js');
+
+  // Generate presigned URL for post media
+  try {
+    if (keyToUse && keyToUse !== 'uploading' && keyToUse !== 'processing') {
+      postObj.media_url = await generatePresignedUrl(
+        keyToUse,
+        NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+      );
+    }
+  } catch (err) {
+    console.error(`Failed to generate URL for post ${updatedPost._id}:`, err.message);
+  }
+
+  // Generate presigned URL for user profile image
+  if (postObj.user_id && postObj.user_id.profile_url) {
+    try {
+      postObj.user_id.profile_url = await generatePresignedUrl(
+        postObj.user_id.profile_url,
+        NUMERIC_CONSTANTS.PRESIGNED_URL_EXPIRY_SECONDS
+      );
+    } catch (err) {
+      console.error(`Failed to generate URL for user profile:`, err.message);
+    }
+  }
+
+  return postObj;
 };

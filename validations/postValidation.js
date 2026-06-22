@@ -28,6 +28,28 @@ export const createPostSchema = z.object({
 });
 
 /**
+ * Edit Post Schema
+ * Validates title and description for updating a post
+ */
+export const editPostSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, 'Title cannot be empty')
+      .max(200, 'Title must not exceed 200 characters')
+      .optional(),
+    description: z
+      .string()
+      .trim()
+      .max(1000, 'Description must not exceed 1000 characters')
+      .optional(),
+  })
+  .refine((data) => data.title !== undefined || data.description !== undefined, {
+    message: 'At least one field (title or description) must be provided',
+  });
+
+/**
  * Post ID Parameter Schema
  * Validates post id from URL parameters
  */
@@ -71,3 +93,4 @@ export const validateFileUpload = (req, res, next) => {
 export const validateCreatePost = createBodyValidationMiddleware(createPostSchema);
 export const validatePostId = createParamsValidationMiddleware(postIdParamSchema);
 export const validateSearchQuery = createQueryValidationMiddleware(searchQuerySchema);
+export const validateEditPost = createBodyValidationMiddleware(editPostSchema);

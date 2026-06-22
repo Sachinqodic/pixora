@@ -6,6 +6,7 @@ import {
   createPostService,
   getFollowingPostsService,
   getUserPostsService,
+  updatePostMetadataService,
 } from '../services/postService.js';
 import AiSuggestion from '../models/AiSuggestion.js';
 import { HTTP_STATUS, MESSAGES, ERROR_CODES, ERROR_MESSAGES } from '../constants/index.js';
@@ -214,6 +215,29 @@ export const getUserPosts = async (req, res, next) => {
     const posts = await getUserPostsService(userId, page, limit, currentUserId);
 
     return baseController.sendSuccess(res, { posts }, MESSAGES.POST_FETCHED, HTTP_STATUS.OK);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Update post title and description
+ * @route PATCH /api/posts/:id
+ */
+export const updatePostMetadata = async (req, res, next) => {
+  try {
+    const { id: postId } = req.params;
+    const userId = req.user._id;
+    const { title, description } = req.body;
+
+    const updatedPost = await updatePostMetadataService(postId, userId, { title, description });
+
+    return baseController.sendSuccess(
+      res,
+      { post: updatedPost },
+      'Post updated successfully',
+      HTTP_STATUS.OK
+    );
   } catch (error) {
     next(error);
   }
