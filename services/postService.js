@@ -18,6 +18,7 @@ import { NotFoundError } from '../utils/errors.js';
 import { getUserInterestsFromCache, getFollowingIdsFromCache } from '../utils/feedCache.js';
 import { addLikedByUserFlag } from '../helpers/likeHelper.js';
 import { addSavedToBoardFlag } from '../helpers/boardHelper.js';
+import { addIsFollowingAuthorFlag } from '../helpers/followHelper.js';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
@@ -62,7 +63,7 @@ const buildCountStages = () => [
     $addFields: {
       totalLikes: { $ifNull: [{ $arrayElemAt: ['$likesCount.count', 0] }, 0] },
       totalComments: { $ifNull: [{ $arrayElemAt: ['$commentsCount.count', 0] }, 0] },
-      authorFollowers: { $ifNull: [{ $arrayElemAt: ['$authorFollowersCount.count', 0] }, 0] },
+      authorTotalFollowers: { $ifNull: [{ $arrayElemAt: ['$authorFollowersCount.count', 0] }, 0] },
     },
   },
   { $project: { likesCount: 0, commentsCount: 0, authorFollowersCount: 0 } },
@@ -380,19 +381,27 @@ export const getPostById = async (postId, currentUserId = null) => {
     throw new NotFoundError(ERROR_MESSAGES.POST_NOT_FOUND);
   }
 
-  // Get likes count, comments count, user's like status, and board status in parallel
+  // Get likes count, comments count, user's like status, board status, follow status, and author followers in parallel
   const { default: BoardPost } = await import('../models/BoardPost.js');
 
-  const [totalLikes, totalComments, userLike, boardEntry] = await Promise.all([
-    Like.countDocuments({ post_id: postId }),
-    Comments.countDocuments({ post_id: postId }),
-    currentUserId
-      ? Like.findOne({ post_id: postId, user_id: currentUserId })
-      : Promise.resolve(null),
-    currentUserId
-      ? BoardPost.findOne({ post_id: postId, user_id: currentUserId })
-      : Promise.resolve(null),
-  ]);
+  const [totalLikes, totalComments, userLike, boardEntry, followEntry, authorTotalFollowers] =
+    await Promise.all([
+      Like.countDocuments({ post_id: postId }),
+      Comments.countDocuments({ post_id: postId }),
+      currentUserId
+        ? Like.findOne({ post_id: postId, user_id: currentUserId })
+        : Promise.resolve(null),
+      currentUserId
+        ? BoardPost.findOne({ post_id: postId, user_id: currentUserId })
+        : Promise.resolve(null),
+      // Check if current user follows the post's author
+      // Uses post.user_id directly (ObjectId) before populate resolves
+      currentUserId && post.user_id.toString() !== currentUserId.toString()
+        ? Follower.findOne({ follower_id: currentUserId, following_id: post.user_id })
+        : Promise.resolve(null),
+      // Total followers of the post's author
+      Follower.countDocuments({ following_id: post.user_id }),
+    ]);
 
   const postObj = post.toObject();
 
@@ -433,6 +442,8 @@ export const getPostById = async (postId, currentUserId = null) => {
   postObj.totalComments = totalComments;
   postObj.isLikedByCurrentUser = !!userLike;
   postObj.isAddedToBoardsByCurrentUser = !!boardEntry;
+  postObj.isFollowingAuthor = !!followEntry;
+  postObj.authorTotalFollowers = authorTotalFollowers;
 
   // Ensure title and description are always present (even if null/empty)
   if (!postObj.title) postObj.title = null;
@@ -569,10 +580,11 @@ export const getAllPostsService = async (
     ]);
   }
 
-  // Attach presigned URLs, liked flag, and board flag
+  // Attach presigned URLs, liked flag, board flag, and isFollowingAuthor flag
   const postsWithUrls = await attachPresignedUrls(posts);
   const postsWithLikedFlag = await addLikedByUserFlag(postsWithUrls, userId);
-  return addSavedToBoardFlag(postsWithLikedFlag, userId);
+  const postsWithBoardFlag = await addSavedToBoardFlag(postsWithLikedFlag, userId);
+  return addIsFollowingAuthorFlag(postsWithBoardFlag, userId);
 };
 
 /**
