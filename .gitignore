@@ -6,8 +6,6 @@ yarn.lock
 pnpm-lock.yaml
 
 # Environment variables
-.env
-.env.local
 .env.*.local
 
 # Logs
@@ -77,8 +75,6 @@ dump.rdb
 .yarn-integrity
 
 # dotenv environment variable files
-.env.test
-.env.production
 
 # parcel-bundler cache
 .cache
@@ -121,3 +117,4 @@ docker-compose.override.yml
 # Docker volumes (if accidentally created locally)
 redis_data/
 redis_data_dev/
+config.bat
